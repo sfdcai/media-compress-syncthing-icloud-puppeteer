@@ -54,9 +54,9 @@ setup_config_directory() {
     if [ ! -f "$ENV_FILE" ]; then
         if [ -f "$PROJECT_ENV" ]; then
             cp "$PROJECT_ENV" "$ENV_FILE"
-            print_status "SUCCESS" "Copied settings.env to $ENV_FILE"
+            print_status "SUCCESS" "Copied config/settings.env to $ENV_FILE"
         else
-            print_status "WARNING" "No settings.env found in project, creating template..."
+            print_status "WARNING" "No config/settings.env found in project, creating template..."
             create_template_env
         fi
     else
@@ -146,7 +146,7 @@ UPLOAD_RETRY_DELAY=30
 CLEAR_BRIDGE_BEFORE_PROCESSING=true
 ENABLE_FILENAME_CONFLICT_RESOLUTION=true
 EOF
-    print_status "SUCCESS" "Created template configuration file"
+    print_status "SUCCESS" "Created template configuration file with dynamic directory structure"
 }
 
 update_git() {

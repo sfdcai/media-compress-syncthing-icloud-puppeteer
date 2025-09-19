@@ -53,13 +53,16 @@ backup_user_data() {
         fi
     done
     
-    # Backup any .env files
-    if [ -f ".env" ]; then
-        cp ".env" "$BACKUP_DIR/"
-    fi
-    
+    # Backup configuration files
     if [ -f "config/settings.env" ]; then
         cp "config/settings.env" "$BACKUP_DIR/"
+        print_status "INFO" "Backed up config/settings.env"
+    fi
+    
+    # Backup any old .env files if they exist
+    if [ -f ".env" ]; then
+        cp ".env" "$BACKUP_DIR/"
+        print_status "INFO" "Backed up .env"
     fi
     
     print_status "SUCCESS" "User data backed up to: $BACKUP_DIR"
@@ -82,6 +85,15 @@ setup_configuration() {
     
     # Make manage_config.sh executable
     chmod +x manage_config.sh
+    
+    # Find the most recent backup to get the config file
+    BACKUP_DIR=$(ls -td ../media-pipeline-backup-* 2>/dev/null | head -1)
+    
+    if [ -n "$BACKUP_DIR" ] && [ -f "$BACKUP_DIR/settings.env" ]; then
+        print_status "INFO" "Using backed-up configuration file..."
+        # Copy the backed-up config to the project directory temporarily
+        cp "$BACKUP_DIR/settings.env" config/settings.env
+    fi
     
     # Run setup
     ./manage_config.sh setup
@@ -167,8 +179,8 @@ main() {
     # Execute steps
     backup_user_data
     clean_git_repository
-    setup_configuration
     update_from_git
+    setup_configuration
     restore_user_data
     show_summary
 }

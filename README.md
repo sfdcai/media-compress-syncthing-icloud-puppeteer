@@ -805,17 +805,16 @@ We've completely simplified the batch processing system for better efficiency an
 The project includes tools to help you manage your configuration and keep it separate from the Git repository:
 
 #### **Configuration Management Scripts:**
-- **`manage_config.sh`** (Linux/macOS) or **`manage_config.ps1`** (Windows)
-- **`cleanup_and_setup.sh`** (Linux/macOS) or **`cleanup_and_setup.ps1`** (Windows)
+- **`manage_config.sh`** - Configuration management
+- **`cleanup_and_setup.sh`** - One-time setup and cleanup
 
 #### **Initial Setup:**
 ```bash
-# Linux/macOS
+# Make scripts executable
 chmod +x manage_config.sh cleanup_and_setup.sh
-./cleanup_and_setup.sh
 
-# Windows PowerShell
-.\cleanup_and_setup.ps1
+# Run the cleanup and setup script
+./cleanup_and_setup.sh
 ```
 
 #### **Managing Configuration:**
@@ -832,14 +831,15 @@ chmod +x manage_config.sh cleanup_and_setup.sh
 
 ### **Configuration File Location:**
 Your configuration is stored outside the project directory:
-- **Linux/macOS**: `~/.config/media-pipeline/settings.env`
-- **Windows**: `%USERPROFILE%\.config\media-pipeline\settings.env`
+- **Ubuntu/LXC**: `~/.config/media-pipeline/settings.env`
+
+**Note**: The project uses `config/settings.env` with dynamic directory paths. The configuration management scripts will move this file outside the project and create a symlink.
 
 ### **Benefits:**
 - ✅ **No Git Conflicts**: Your config is never committed to Git
 - ✅ **Easy Updates**: Pull latest changes without losing your settings
 - ✅ **Backup Safe**: Configuration is preserved during updates
-- ✅ **Multiple Environments**: Different configs for different setups
+- ✅ **Ubuntu/LXC Optimized**: Designed specifically for Ubuntu LXC containers
 
 ## 📞 Support & Community
 

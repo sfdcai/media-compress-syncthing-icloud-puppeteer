@@ -239,21 +239,40 @@ check_user_group() {
 check_directories() {
     print_status "INFO" "Checking directory structure..."
     
+    # Get directories from settings.env or use defaults
+    local nas_mount=$(grep "^NAS_MOUNT=" "$PIPELINE_DIR/config/settings.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    local originals_dir=$(grep "^ORIGINALS_DIR=" "$PIPELINE_DIR/config/settings.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    local compressed_dir=$(grep "^COMPRESSED_DIR=" "$PIPELINE_DIR/config/settings.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    local bridge_icloud_dir=$(grep "^BRIDGE_ICLOUD_DIR=" "$PIPELINE_DIR/config/settings.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    local bridge_pixel_dir=$(grep "^BRIDGE_PIXEL_DIR=" "$PIPELINE_DIR/config/settings.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    local uploaded_icloud_dir=$(grep "^UPLOADED_ICLOUD_DIR=" "$PIPELINE_DIR/config/settings.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    local uploaded_pixel_dir=$(grep "^UPLOADED_PIXEL_DIR=" "$PIPELINE_DIR/config/settings.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    local sorted_dir=$(grep "^SORTED_DIR=" "$PIPELINE_DIR/config/settings.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    local cleanup_dir=$(grep "^CLEANUP_DIR=" "$PIPELINE_DIR/config/settings.env" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    
+    # Use defaults if not found in settings.env
+    [ -z "$nas_mount" ] && nas_mount="/opt/media-pipeline"
+    [ -z "$originals_dir" ] && originals_dir="$nas_mount/originals"
+    [ -z "$compressed_dir" ] && compressed_dir="$nas_mount/compressed"
+    [ -z "$bridge_icloud_dir" ] && bridge_icloud_dir="$nas_mount/bridge/icloud"
+    [ -z "$bridge_pixel_dir" ] && bridge_pixel_dir="$nas_mount/bridge/pixel"
+    [ -z "$uploaded_icloud_dir" ] && uploaded_icloud_dir="$nas_mount/uploaded/icloud"
+    [ -z "$uploaded_pixel_dir" ] && uploaded_pixel_dir="$nas_mount/uploaded/pixel"
+    [ -z "$sorted_dir" ] && sorted_dir="$nas_mount/sorted"
+    [ -z "$cleanup_dir" ] && cleanup_dir="$nas_mount/cleanup"
+    
     local required_dirs=(
         "$PIPELINE_DIR"
-        "$PIPELINE_DIR/originals"
-        "$PIPELINE_DIR/compressed"
-        "$PIPELINE_DIR/bridge"
-        "$PIPELINE_DIR/uploaded"
         "$PIPELINE_DIR/logs"
         "$PIPELINE_DIR/temp"
-        "$PIPELINE_DIR/cleanup"
-        "$PIPELINE_DIR/bridge/icloud"
-        "$PIPELINE_DIR/bridge/pixel"
-        "$PIPELINE_DIR/uploaded/icloud"
-        "$PIPELINE_DIR/uploaded/pixel"
-        "$PIPELINE_DIR/sorted/icloud"
-        "$PIPELINE_DIR/sorted/pixel"
+        "$originals_dir"
+        "$compressed_dir"
+        "$bridge_icloud_dir"
+        "$bridge_pixel_dir"
+        "$uploaded_icloud_dir"
+        "$uploaded_pixel_dir"
+        "$sorted_dir"
+        "$cleanup_dir"
     )
     
     local missing_dirs=()
