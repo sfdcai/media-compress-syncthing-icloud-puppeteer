@@ -537,6 +537,112 @@ Adjust batch settings based on your network and storage:
 - Secure credential storage in environment variables
 - LXC container isolation
 
+## 🚀 Enhanced Installation Options
+
+### Option 1: One-Command Installation (Recommended)
+```bash
+# Download and run the enhanced installation script
+bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syncthing-icloud-puppeteer/main/setup-git-clone.sh)"
+```
+
+### Option 2: Manual Installation
+```bash
+# Clone the repository
+git clone https://github.com/sfdcai/media-compress-syncthing-icloud-puppeteer.git
+cd media-compress-syncthing-icloud-puppeteer
+
+# Run the enhanced installation script
+sudo ./install.sh
+```
+
+### Option 3: LXC Container Setup
+```bash
+# For Proxmox LXC containers
+sudo ./scripts/setup_lxc.sh
+```
+
+## 🔧 External Services Setup
+
+### ☁️ Supabase Database Setup
+
+1. **Create Supabase Project**:
+   - Go to [supabase.com](https://supabase.com)
+   - Create a new project
+   - Note your project URL and API key
+
+2. **Configure Database Schema**:
+   ```bash
+   # The schema is automatically created from supabase/schema.sql
+   # Or manually run the SQL commands in your Supabase SQL editor
+   ```
+
+3. **Update Configuration**:
+   ```bash
+   nano /opt/media-pipeline/config/settings.env
+   
+   # Add your Supabase credentials:
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_KEY=your-supabase-anon-key
+   ```
+
+### 🍎 iCloud Setup
+
+1. **Enable Two-Factor Authentication**:
+   - Go to [appleid.apple.com](https://appleid.apple.com)
+   - Sign in with your Apple ID
+   - Enable Two-Factor Authentication
+
+2. **Generate App-Specific Password**:
+   - In Apple ID settings, go to "Security" section
+   - Click "Generate Password" under "App-Specific Passwords"
+   - Label it "Media Pipeline"
+   - Copy the generated password
+
+3. **Configure Credentials**:
+   ```bash
+   nano /opt/media-pipeline/config/settings.env
+   
+   # Set your iCloud credentials:
+   ICLOUD_USERNAME=your@email.com
+   ICLOUD_PASSWORD=your-app-specific-password
+   ```
+
+### 🔄 Syncthing Setup
+
+1. **Access Web Interface**:
+   - Open http://YOUR_IP:8384 in your browser
+   - Set up a password for security
+
+2. **Add Devices**:
+   - Share your device ID with other devices
+   - Accept device invitations
+   - Configure folder sharing
+
+3. **Configure Folders**:
+   - Create a folder for media sync
+   - Set the path to `/mnt/syncthing/pixel`
+   - Configure sync settings
+
+### 🔥 Firewall Configuration
+
+The installation script automatically configures UFW firewall, but you can manually configure:
+
+```bash
+# Enable UFW
+sudo ufw enable
+
+# Allow SSH
+sudo ufw allow ssh
+
+# Allow Syncthing ports
+sudo ufw allow 8384/tcp comment "Syncthing Web UI"
+sudo ufw allow 22000/tcp comment "Syncthing Sync"
+sudo ufw allow 21027/udp comment "Syncthing Discovery"
+
+# Check status
+sudo ufw status
+```
+
 ## 🆕 Latest Updates & Improvements
 
 ### Version 2.0 - Enhanced Monitoring & Auto-Fix

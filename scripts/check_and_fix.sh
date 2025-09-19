@@ -46,6 +46,13 @@ print_status() {
 ask_fix() {
     local message=$1
     echo -e "${YELLOW}Fix: $message${NC}"
+    
+    # Check if running in non-interactive mode
+    if [[ "$NON_INTERACTIVE" == "true" ]]; then
+        echo "Non-interactive mode: Skipping fix"
+        return 1
+    fi
+    
     read -p "Apply this fix? (y/N): " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -66,6 +73,14 @@ check_root() {
     if [[ $EUID -ne 0 ]]; then
         print_status "ERROR" "This script must be run as root (use sudo)"
         exit 1
+    fi
+}
+
+# Check for non-interactive mode
+check_non_interactive() {
+    if [[ "$1" == "--non-interactive" ]] || [[ "$NON_INTERACTIVE" == "true" ]]; then
+        NON_INTERACTIVE="true"
+        print_status "INFO" "Running in non-interactive mode"
     fi
 }
 
@@ -935,6 +950,7 @@ main() {
     echo
     
     check_root
+    check_non_interactive "$@"
     
     echo "Starting comprehensive health check..."
     echo
