@@ -21,10 +21,8 @@ apt install -y \
     ffmpeg \
     exiftool \
     rsync \
-    md5sum \
     parallel \
     pv \
-    systemd \
     curl \
     wget \
     unzip \
