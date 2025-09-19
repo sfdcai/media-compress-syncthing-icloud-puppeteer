@@ -8,7 +8,7 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from utils import log_step, ensure_directory_exists
+from utils import log_step, ensure_directory_exists, create_media_file_record, create_batch_record, update_batch_status, calculate_file_hash
 
 def check_icloudpd_installed():
     """Check if icloudpd is installed and accessible"""
@@ -137,8 +137,56 @@ def run_icloud_download():
         log_step("download_from_icloud", f"Unexpected error during download: {e}", "error")
         return False
 
+def track_downloaded_files_in_database(originals_dir, batch_id=None):
+    """Track downloaded files in the database"""
+    try:
+        if not os.path.exists(originals_dir):
+            log_step("download_from_icloud", f"Download directory {originals_dir} does not exist", "error")
+            return 0
+        
+        # Find all media files in directory
+        media_files = []
+        for root, dirs, filenames in os.walk(originals_dir):
+            for filename in filenames:
+                if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.heic', '.heif', '.mp4', '.mov', '.avi')):
+                    file_path = os.path.join(root, filename)
+                    media_files.append(file_path)
+        
+        if not media_files:
+            log_step("download_from_icloud", "No media files found to track", "warning")
+            return 0
+        
+        # Create batch record if not provided
+        if not batch_id:
+            batch_id = create_batch_record(
+                batch_type="icloud",
+                file_count=len(media_files),
+                total_size_gb=sum(os.path.getsize(f) for f in media_files if os.path.exists(f)) / (1024**3)
+            )
+        
+        # Track each file in database
+        tracked_count = 0
+        for file_path in media_files:
+            try:
+                file_id = create_media_file_record(
+                    file_path=file_path,
+                    batch_id=batch_id,
+                    source_path="iCloud"
+                )
+                if file_id:
+                    tracked_count += 1
+            except Exception as e:
+                log_step("download_from_icloud", f"Failed to track file {file_path}: {e}", "error")
+        
+        log_step("download_from_icloud", f"Tracked {tracked_count}/{len(media_files)} files in database", "success")
+        return tracked_count
+        
+    except Exception as e:
+        log_step("download_from_icloud", f"Error tracking files in database: {e}", "error")
+        return 0
+
 def check_download_results():
-    """Check if any files were downloaded"""
+    """Check if any files were downloaded and track them in database"""
     # Use ORIGINALS_DIR if set, otherwise fall back to NAS_MOUNT/originals
     originals_dir = os.getenv("ORIGINALS_DIR")
     if not originals_dir:
@@ -159,7 +207,16 @@ def check_download_results():
         
         if files:
             log_step("download_from_icloud", f"Downloaded {len(files)} media files to {originals_dir}", "success")
-            return True
+            
+            # Track files in database
+            tracked_count = track_downloaded_files_in_database(originals_dir)
+            
+            if tracked_count > 0:
+                log_step("download_from_icloud", f"Successfully tracked {tracked_count} files in database", "success")
+                return True
+            else:
+                log_step("download_from_icloud", "Files downloaded but database tracking failed", "warning")
+                return False
         else:
             log_step("download_from_icloud", "No media files found after download", "warning")
             return False

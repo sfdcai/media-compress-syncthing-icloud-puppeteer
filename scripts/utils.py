@@ -221,3 +221,42 @@ def log_duplicate_file(original_file_id, duplicate_file_id, file_hash):
         log_step("duplicate_logging", f"Logged duplicate relationship for hash {file_hash}", "success")
     except Exception as e:
         log_step("duplicate_logging", f"Failed to log duplicate: {e}", "error")
+
+def create_media_file_record(file_path, file_hash=None, batch_id=None, source_path=None):
+    """Create a new media file record in database"""
+    try:
+        filename = os.path.basename(file_path)
+        file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+        
+        # Calculate file hash if not provided
+        if not file_hash:
+            file_hash = calculate_file_hash(file_path)
+        
+        media_data = {
+            "filename": filename,
+            "file_path": file_path,
+            "file_size": file_size,
+            "file_hash": file_hash,
+            "status": "downloaded",
+            "source_path": source_path or file_path,
+            "batch_id": batch_id,
+            "processed_at": "now()"
+        }
+        
+        result = supabase.table("media_files").insert(media_data).execute()
+        file_id = result.data[0]["id"]
+        log_step("media_file_creation", f"Created media file record {file_id} for {filename}", "success")
+        return file_id
+        
+    except Exception as e:
+        log_step("media_file_creation", f"Failed to create media file record for {file_path}: {e}", "error")
+        return None
+
+def get_media_files_by_directory(directory):
+    """Get all media files from a directory"""
+    try:
+        result = supabase.table("media_files").select("*").ilike("file_path", f"{directory}%").execute()
+        return result.data
+    except Exception as e:
+        log_step("file_query", f"Failed to get files from directory {directory}: {e}", "error")
+        return []
