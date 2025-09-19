@@ -799,6 +799,48 @@ We've completely simplified the batch processing system for better efficiency an
 - **Updated `setup_nas_structure.sh`**: Reflects simplified folder structure
 - **Better Error Handling**: More robust installation and troubleshooting
 
+## 🔧 Configuration Management
+
+### Managing Your Configuration
+The project includes tools to help you manage your configuration and keep it separate from the Git repository:
+
+#### **Configuration Management Scripts:**
+- **`manage_config.sh`** (Linux/macOS) or **`manage_config.ps1`** (Windows)
+- **`cleanup_and_setup.sh`** (Linux/macOS) or **`cleanup_and_setup.ps1`** (Windows)
+
+#### **Initial Setup:**
+```bash
+# Linux/macOS
+chmod +x manage_config.sh cleanup_and_setup.sh
+./cleanup_and_setup.sh
+
+# Windows PowerShell
+.\cleanup_and_setup.ps1
+```
+
+#### **Managing Configuration:**
+```bash
+# Edit configuration
+./manage_config.sh edit
+
+# Check status
+./manage_config.sh status
+
+# Update from Git (preserves your config)
+./manage_config.sh update
+```
+
+### **Configuration File Location:**
+Your configuration is stored outside the project directory:
+- **Linux/macOS**: `~/.config/media-pipeline/settings.env`
+- **Windows**: `%USERPROFILE%\.config\media-pipeline\settings.env`
+
+### **Benefits:**
+- ✅ **No Git Conflicts**: Your config is never committed to Git
+- ✅ **Easy Updates**: Pull latest changes without losing your settings
+- ✅ **Backup Safe**: Configuration is preserved during updates
+- ✅ **Multiple Environments**: Different configs for different setups
+
 ## 📞 Support & Community
 
 ### Getting Help:
