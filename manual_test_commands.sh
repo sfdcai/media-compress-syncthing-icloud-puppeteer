@@ -26,6 +26,9 @@ echo
 echo "# 5. Edit your configuration"
 echo "./manage_config.sh edit"
 echo
+echo "# 5.5. Test Supabase connection and database"
+echo "python3 test_supabase.py"
+echo
 
 echo "=== PHASE 2: MANUAL PIPELINE TESTING ==="
 echo

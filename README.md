@@ -191,6 +191,11 @@ systemctl status syncthing@root
 - **Success check**: File opens in editor, save and exit
 - **Verify**: Check your iCloud credentials and paths are correct
 
+**Command 5.5: `python3 test_supabase.py`**
+- **What it does**: Tests Supabase connection, table structure, and database operations
+- **Success check**: All tests pass (Connection, Tables, Operations, Permissions, Pooling)
+- **Verify**: Check that all required tables exist and CRUD operations work
+
 #### **Phase 2: Manual Pipeline Testing Commands**
 
 **Command 6: iCloud Download Test**
@@ -302,9 +307,47 @@ This script will display all 18 manual testing commands with explanations, makin
 4. **Only start services** - After ALL manual tests pass successfully
 5. **Monitor services** - Watch logs after starting automated services
 
+### **Supabase Database Testing:**
+
+The `test_supabase.py` script performs comprehensive testing of your Supabase setup:
+
+#### **What it tests:**
+1. **Connection Test** - Verifies Supabase URL and API key
+2. **Table Structure Test** - Checks if all required tables exist with correct columns
+3. **Database Operations Test** - Tests INSERT, SELECT, UPDATE, DELETE operations
+4. **Permissions Test** - Verifies Row Level Security (RLS) and access rights
+5. **Connection Pooling Test** - Tests multiple rapid connections
+
+#### **Required Tables:**
+- `media_files` - Stores file metadata and hashes
+- `duplicates` - Tracks duplicate file relationships
+- `upload_logs` - Logs upload attempts and status
+- `batch_logs` - Tracks batch processing operations
+- `compression_logs` - Records compression operations
+
+#### **Running the test:**
+```bash
+# Test Supabase setup
+python3 test_supabase.py
+
+# Expected output: All 5 tests should pass
+# ✓ Connection: PASS
+# ✓ Table Structure: PASS  
+# ✓ Database Operations: PASS
+# ✓ Permissions: PASS
+# ✓ Connection Pooling: PASS
+```
+
+#### **If tests fail:**
+- **Connection fails** → Check `SUPABASE_URL` and `SUPABASE_KEY` in `settings.env`
+- **Tables missing** → Run the `supabase/schema.sql` script in your Supabase dashboard
+- **Permission errors** → Check RLS policies in Supabase dashboard
+- **API key issues** → Verify the key has correct permissions
+
 ### **Common Issues During Manual Testing:**
 
 - **iCloud authentication fails** → Check app-specific password in `settings.env`
+- **Supabase connection fails** → Run `python3 test_supabase.py` to diagnose
 - **Permission errors** → Run `sudo ./scripts/check_and_fix.sh --fix-permissions`
 - **Missing directories** → Run `sudo ./setup_nas_structure.sh`
 - **Syncthing not accessible** → Check firewall and web interface access
@@ -1196,7 +1239,22 @@ sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd --help
 # - Account locked
 ```
 
-#### **8. Directory Structure Issues**
+#### **8. Supabase Database Issues**
+```bash
+# Test Supabase connection and database
+python3 test_supabase.py
+
+# Check Supabase configuration
+grep "SUPABASE_" config/settings.env
+
+# Common issues:
+# - Wrong SUPABASE_URL or SUPABASE_KEY
+# - Missing database tables
+# - RLS (Row Level Security) policies blocking access
+# - API key permissions insufficient
+```
+
+#### **9. Directory Structure Issues**
 ```bash
 # Check NAS mount
 mount | grep wd_all_pictures
