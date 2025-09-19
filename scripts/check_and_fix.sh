@@ -254,8 +254,6 @@ check_directories() {
         "$PIPELINE_DIR/uploaded/pixel"
         "$PIPELINE_DIR/sorted/icloud"
         "$PIPELINE_DIR/sorted/pixel"
-        "/mnt/nas/photos"
-        "/mnt/syncthing/pixel"
     )
     
     local missing_dirs=()
@@ -292,8 +290,13 @@ check_permissions() {
             if ask_fix "Fix directory ownership"; then
                 apply_fix "Fixing directory ownership"
                 chown -R "$USER_NAME:$USER_NAME" "$PIPELINE_DIR"
-                chown -R "$USER_NAME:$USER_NAME" /mnt/nas 2>/dev/null || true
-                chown -R "$USER_NAME:$USER_NAME" /mnt/syncthing 2>/dev/null || true
+                # Fix ownership for NAS mount if configured
+                if [ -f "$PIPELINE_DIR/config/settings.env" ]; then
+                    local nas_mount=$(grep "^NAS_MOUNT=" "$PIPELINE_DIR/config/settings.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+                    local pixel_sync=$(grep "^PIXEL_SYNC_FOLDER=" "$PIPELINE_DIR/config/settings.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+                    [ -n "$nas_mount" ] && chown -R "$USER_NAME:$USER_NAME" "$nas_mount" 2>/dev/null || true
+                    [ -n "$pixel_sync" ] && chown -R "$USER_NAME:$USER_NAME" "$(dirname "$pixel_sync")" 2>/dev/null || true
+                fi
             fi
         fi
         
@@ -305,8 +308,13 @@ check_permissions() {
             if ask_fix "Fix directory permissions"; then
                 apply_fix "Fixing directory permissions"
                 chmod -R 755 "$PIPELINE_DIR"
-                chmod -R 755 /mnt/nas 2>/dev/null || true
-                chmod -R 755 /mnt/syncthing 2>/dev/null || true
+                # Fix permissions for NAS mount if configured
+                if [ -f "$PIPELINE_DIR/config/settings.env" ]; then
+                    local nas_mount=$(grep "^NAS_MOUNT=" "$PIPELINE_DIR/config/settings.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+                    local pixel_sync=$(grep "^PIXEL_SYNC_FOLDER=" "$PIPELINE_DIR/config/settings.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+                    [ -n "$nas_mount" ] && chmod -R 755 "$nas_mount" 2>/dev/null || true
+                    [ -n "$pixel_sync" ] && chmod -R 755 "$(dirname "$pixel_sync")" 2>/dev/null || true
+                fi
             fi
         fi
     fi
@@ -1016,7 +1024,19 @@ check_network_services() {
 check_mount_points() {
     print_status "INFO" "Checking mount points..."
     
-    local mount_points=("/mnt/nas" "/mnt/syncthing")
+    # Get mount points from settings.env
+    local mount_points=()
+    if [ -f "$PIPELINE_DIR/config/settings.env" ]; then
+        local nas_mount=$(grep "^NAS_MOUNT=" "$PIPELINE_DIR/config/settings.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        local pixel_sync=$(grep "^PIXEL_SYNC_FOLDER=" "$PIPELINE_DIR/config/settings.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        [ -n "$nas_mount" ] && mount_points+=("$nas_mount")
+        [ -n "$pixel_sync" ] && mount_points+=("$(dirname "$pixel_sync")")
+    fi
+    
+    # Fallback to default mount points if not configured
+    if [ ${#mount_points[@]} -eq 0 ]; then
+        mount_points=("/mnt/nas" "/mnt/syncthing")
+    fi
     
     for mount in "${mount_points[@]}"; do
         if mountpoint -q "$mount" 2>/dev/null; then
@@ -1209,6 +1229,9 @@ check_nas_structure() {
         "$nas_base/bridge"
         "$nas_base/bridge/icloud"
         "$nas_base/bridge/pixel"
+        "$nas_base/uploaded"
+        "$nas_base/uploaded/icloud"
+        "$nas_base/uploaded/pixel"
         "$nas_base/sorted"
         "$nas_base/temp"
         "$nas_base/cleanup"

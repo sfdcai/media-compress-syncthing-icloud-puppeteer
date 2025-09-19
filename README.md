@@ -39,6 +39,8 @@ sudo ./scripts/setup_lxc.sh
 ```
 
 ### 2. Configuration
+**IMPORTANT**: All directory paths are configured via environment variables in `config/settings.env`. No hardcoded paths are used in the scripts.
+
 Edit `config/settings.env` with your credentials and settings:
 
 ```env
@@ -58,7 +60,11 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your-supabase-key
 
 # Storage Paths
-NAS_MOUNT=/mnt/nas/photos
+NAS_MOUNT=/mnt/wd_all_pictures/sync
+ORIGINALS_DIR=/mnt/wd_all_pictures/sync/originals
+COMPRESSED_DIR=/mnt/wd_all_pictures/sync/compressed
+BRIDGE_ICLOUD_DIR=/mnt/wd_all_pictures/sync/bridge/icloud
+BRIDGE_PIXEL_DIR=/mnt/wd_all_pictures/sync/bridge/pixel
 PIXEL_SYNC_FOLDER=/mnt/syncthing/pixel
 ```
 
@@ -85,6 +91,27 @@ sudo systemctl start media-pipeline
 ```
 
 ## Configuration Options
+
+### Environment Variables
+All scripts use environment variables from `config/settings.env` for configuration. This ensures:
+- **No hardcoded paths** in any script
+- **Flexible configuration** for different setups
+- **Easy customization** without code changes
+- **Consistent paths** across all components
+
+### Directory Configuration
+All directory paths are configurable via environment variables:
+
+- `NAS_MOUNT`: Base directory for all media files
+- `ORIGINALS_DIR`: Where iCloud downloads are stored
+- `COMPRESSED_DIR`: Where compressed media is stored
+- `BRIDGE_ICLOUD_DIR`: Files ready for iCloud upload
+- `BRIDGE_PIXEL_DIR`: Files ready for Pixel sync
+- `UPLOADED_ICLOUD_DIR`: Tracking uploaded iCloud files
+- `UPLOADED_PIXEL_DIR`: Tracking uploaded Pixel files
+- `SORTED_DIR`: Final organized storage
+- `CLEANUP_DIR`: Files ready for cleanup
+- `PIXEL_SYNC_FOLDER`: Where Syncthing syncs files to
 
 ### Feature Toggles
 - `ENABLE_ICLOUD_UPLOAD`: Enable/disable iCloud uploads

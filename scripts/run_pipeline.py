@@ -15,18 +15,21 @@ from utils import (
 
 def setup_directories():
     """Setup required directories"""
+    # Get base directory from environment
+    base_dir = os.getenv("NAS_MOUNT", "/opt/media-pipeline")
+    
     directories = [
-        "originals",
-        "compressed", 
-        "bridge/icloud",
-        "bridge/pixel",
-        "uploaded/icloud",
-        "uploaded/pixel",
-        "sorted/icloud",
-        "sorted/pixel",
-        "logs",
-        "temp",
-        "cleanup"
+        os.path.join(base_dir, "originals"),
+        os.path.join(base_dir, "compressed"), 
+        os.path.join(base_dir, "bridge/icloud"),
+        os.path.join(base_dir, "bridge/pixel"),
+        os.path.join(base_dir, "uploaded/icloud"),
+        os.path.join(base_dir, "uploaded/pixel"),
+        os.path.join(base_dir, "sorted/icloud"),
+        os.path.join(base_dir, "sorted/pixel"),
+        os.path.join(base_dir, "logs"),
+        os.path.join(base_dir, "temp"),
+        os.path.join(base_dir, "cleanup")
     ]
     
     for directory in directories:

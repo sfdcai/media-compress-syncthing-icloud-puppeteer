@@ -44,19 +44,15 @@ mkdir -p /opt/media-pipeline/bridge/{icloud,pixel}
 mkdir -p /opt/media-pipeline/uploaded/{icloud,pixel}
 mkdir -p /opt/media-pipeline/sorted/{icloud,pixel}
 
-# Setup mount points for NAS and Syncthing
+# Setup mount points for NAS and Syncthing (will be configured via settings.env)
 echo "Setting up mount points..."
-mkdir -p /mnt/nas/photos
-mkdir -p /mnt/syncthing/pixel
+# Note: Actual mount points will be created based on settings.env configuration
+# This is just for initial setup - real paths are configured in settings.env
 
 # Set proper ownership and permissions
 echo "Setting permissions..."
 chown -R media-pipeline:media-pipeline /opt/media-pipeline
-chown -R media-pipeline:media-pipeline /mnt/nas
-chown -R media-pipeline:media-pipeline /mnt/syncthing
 chmod -R 755 /opt/media-pipeline
-chmod -R 755 /mnt/nas
-chmod -R 755 /mnt/syncthing
 
 # Setup Python virtual environment
 echo "Setting up Python virtual environment..."
