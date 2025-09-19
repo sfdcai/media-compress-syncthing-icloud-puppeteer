@@ -1,0 +1,6 @@
+icloudpd
+pillow
+ffmpeg-python
+python-dotenv
+supabase
+psutil
