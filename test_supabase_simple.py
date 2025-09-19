@@ -6,10 +6,21 @@ Quick test for Supabase connectivity and basic operations
 
 import os
 import sys
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv('config/settings.env')
+# Try to load dotenv, but don't fail if it's not available
+try:
+    from dotenv import load_dotenv
+    load_dotenv('config/settings.env')
+except ImportError:
+    print("⚠️  Warning: python-dotenv not installed, using system environment variables")
+    # Try to load from the virtual environment's settings
+    venv_settings = '/opt/media-pipeline/config/settings.env'
+    if os.path.exists(venv_settings):
+        with open(venv_settings, 'r') as f:
+            for line in f:
+                if '=' in line and not line.startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    os.environ[key] = value.strip('"').strip("'")
 
 def test_supabase_simple():
     """Simple Supabase connectivity test"""

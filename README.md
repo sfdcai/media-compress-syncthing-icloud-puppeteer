@@ -191,7 +191,7 @@ systemctl status syncthing@root
 - **Success check**: File opens in editor, save and exit
 - **Verify**: Check your iCloud credentials and paths are correct
 
-**Command 5.5: `python3 test_supabase.py`**
+**Command 5.5: `sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/test_supabase.py`**
 - **What it does**: Tests Supabase connection, table structure, and database operations
 - **Success check**: All tests pass (Connection, Tables, Operations, Permissions, Pooling)
 - **Verify**: Check that all required tables exist and CRUD operations work
@@ -327,8 +327,11 @@ The `test_supabase.py` script performs comprehensive testing of your Supabase se
 
 #### **Running the test:**
 ```bash
-# Test Supabase setup
-python3 test_supabase.py
+# Test Supabase setup (using virtual environment)
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/test_supabase.py
+
+# Or quick test
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/test_supabase_simple.py
 
 # Expected output: All 5 tests should pass
 # ✓ Connection: PASS
@@ -1217,32 +1220,58 @@ npm audit fix --force
 
 #### **6. Python Environment Issues**
 ```bash
+# Quick fix - Run the automated fix script
+chmod +x fix_python_venv.sh
+sudo ./fix_python_venv.sh
+
+# Manual fix steps:
 # Check virtual environment
 ls -la /opt/media-pipeline/venv/
 
+# Check if python3-venv is installed
+dpkg -l | grep python3-venv
+
+# Install python3-venv if missing
+sudo apt install -y python3-venv
+
 # Recreate virtual environment
 sudo -u media-pipeline python3 -m venv /opt/media-pipeline/venv
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install -r requirements.txt
+
+# Upgrade pip in virtual environment
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install --upgrade pip
+
+# Install requirements
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install -r /opt/media-pipeline/requirements.txt
+
+# Test icloudpd in virtual environment
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd --help
 ```
 
 #### **7. iCloud Authentication Issues**
 ```bash
 # Check iCloud credentials
-grep "ICLOUD_" config/settings.env
+grep "ICLOUD_" /opt/media-pipeline/config/settings.env
 
-# Test icloudpd manually
+# Test icloudpd manually (using virtual environment)
 sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd --help
+
+# Test icloudpd with credentials
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd --username your@email.com --password your-app-password --list-albums
 
 # Common issues:
 # - Wrong app-specific password
 # - 2FA not properly configured
 # - Account locked
+# - icloudpd not installed in virtual environment
 ```
 
 #### **8. Supabase Database Issues**
 ```bash
 # Test Supabase connection and database
-python3 test_supabase.py
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/test_supabase.py
+
+# Quick test
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/test_supabase_simple.py
 
 # Check Supabase configuration
 grep "SUPABASE_" config/settings.env
@@ -1252,6 +1281,7 @@ grep "SUPABASE_" config/settings.env
 # - Missing database tables
 # - RLS (Row Level Security) policies blocking access
 # - API key permissions insufficient
+# - Missing python-dotenv package
 ```
 
 #### **9. Directory Structure Issues**

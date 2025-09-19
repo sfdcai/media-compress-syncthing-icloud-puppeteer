@@ -8,7 +8,21 @@ import os
 import sys
 import json
 from datetime import datetime
-from dotenv import load_dotenv
+
+# Try to load dotenv, but don't fail if it's not available
+try:
+    from dotenv import load_dotenv
+    load_dotenv('config/settings.env')
+except ImportError:
+    print("⚠️  Warning: python-dotenv not installed, using system environment variables")
+    # Try to load from the virtual environment's settings
+    venv_settings = '/opt/media-pipeline/config/settings.env'
+    if os.path.exists(venv_settings):
+        with open(venv_settings, 'r') as f:
+            for line in f:
+                if '=' in line and not line.startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    os.environ[key] = value.strip('"').strip("'")
 
 # Add the scripts directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
@@ -18,11 +32,8 @@ try:
     from supabase.lib.client_options import ClientOptions
 except ImportError:
     print("❌ Error: supabase package not installed")
-    print("Run: pip install supabase")
+    print("Run: sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install supabase")
     sys.exit(1)
-
-# Load environment variables
-load_dotenv('config/settings.env')
 
 def print_status(status, message):
     """Print colored status messages"""
