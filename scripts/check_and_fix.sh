@@ -84,6 +84,48 @@ check_non_interactive() {
     fi
 }
 
+# Fix permission issues
+fix_permissions() {
+    print_status "INFO" "Fixing permission issues..."
+    
+    # Stop the service first to prevent conflicts
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+        print_status "INFO" "Stopping service to fix permissions..."
+        systemctl stop "$SERVICE_NAME"
+    fi
+    
+    # Fix directory permissions
+    chown -R "$USER_NAME:$USER_NAME" "$PIPELINE_DIR"
+    chmod -R 755 "$PIPELINE_DIR"
+    
+    # Fix logs directory specifically
+    chown -R "$USER_NAME:$USER_NAME" "$PIPELINE_DIR/logs"
+    chmod -R 755 "$PIPELINE_DIR/logs"
+    
+    # Create and fix log file
+    touch "$PIPELINE_DIR/logs/pipeline.log"
+    chown "$USER_NAME:$USER_NAME" "$PIPELINE_DIR/logs/pipeline.log"
+    chmod 644 "$PIPELINE_DIR/logs/pipeline.log"
+    
+    # Fix any other log files
+    find "$PIPELINE_DIR/logs" -name "*.log" -exec chown "$USER_NAME:$USER_NAME" {} \;
+    find "$PIPELINE_DIR/logs" -name "*.log" -exec chmod 644 {} \;
+    
+    print_status "SUCCESS" "Permission issues fixed"
+    
+    # Try to start the service
+    print_status "INFO" "Starting service after permission fix..."
+    systemctl start "$SERVICE_NAME"
+    sleep 3
+    
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+        print_status "SUCCESS" "Service started successfully after permission fix"
+    else
+        print_status "WARNING" "Service still not running - check logs for other issues"
+        print_status "INFO" "Run: journalctl -u $SERVICE_NAME -f"
+    fi
+}
+
 # Check system packages
 check_packages() {
     print_status "INFO" "Checking system packages..."
@@ -116,6 +158,12 @@ check_packages() {
             apply_fix "Installing missing packages"
             apt update
             apt install -y "${missing_packages[@]}"
+            
+            # Special handling for python3-venv
+            if [[ " ${missing_packages[@]} " =~ " python3-venv " ]]; then
+                print_status "INFO" "Installing python3-venv package..."
+                apt install -y python3-venv
+            fi
         fi
     fi
 }
@@ -346,11 +394,25 @@ check_python_venv() {
         print_status "ERROR" "Python virtual environment does not exist"
         if ask_fix "Create Python virtual environment"; then
             apply_fix "Creating Python virtual environment"
+            
+            # First ensure python3-venv is installed
+            if ! dpkg -l | grep -q "python3-venv"; then
+                print_status "INFO" "Installing python3-venv package..."
+                apt install -y python3-venv
+            fi
+            
+            # Create virtual environment
             sudo -u "$USER_NAME" python3 -m venv "$PIPELINE_DIR/venv"
+            
+            # Upgrade pip
             sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install --upgrade pip
+            
+            # Install requirements if available
             if [ -f "$PIPELINE_DIR/requirements.txt" ]; then
                 sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install -r "$PIPELINE_DIR/requirements.txt"
             fi
+            
+            print_status "OK" "Python virtual environment created successfully"
         fi
     fi
 }
@@ -470,13 +532,39 @@ check_systemd_service() {
                         print_status "INFO" "Check logs with: journalctl -u $SERVICE_NAME -f"
                         
                         # Check for common startup issues
-                        local log_error=$(journalctl -u "$SERVICE_NAME" --since "5 minutes ago" | tail -n 5)
+                        local log_error=$(journalctl -u "$SERVICE_NAME" --since "5 minutes ago" | tail -n 10)
                         if echo "$log_error" | grep -q "Permission denied"; then
-                            print_status "INFO" "Permission error detected - checking log file permissions"
+                            print_status "INFO" "Permission error detected - fixing log file and directory permissions"
+                            
+                            # Fix logs directory permissions
+                            chown -R "$USER_NAME:$USER_NAME" "$PIPELINE_DIR/logs"
+                            chmod -R 755 "$PIPELINE_DIR/logs"
+                            
+                            # Fix log file permissions
                             if [ -f "$PIPELINE_DIR/logs/pipeline.log" ]; then
                                 chown "$USER_NAME:$USER_NAME" "$PIPELINE_DIR/logs/pipeline.log"
                                 chmod 644 "$PIPELINE_DIR/logs/pipeline.log"
-                                print_status "OK" "Log file permissions fixed"
+                            else
+                                # Create log file if it doesn't exist
+                                touch "$PIPELINE_DIR/logs/pipeline.log"
+                                chown "$USER_NAME:$USER_NAME" "$PIPELINE_DIR/logs/pipeline.log"
+                                chmod 644 "$PIPELINE_DIR/logs/pipeline.log"
+                            fi
+                            
+                            # Also fix the entire pipeline directory permissions
+                            chown -R "$USER_NAME:$USER_NAME" "$PIPELINE_DIR"
+                            chmod -R 755 "$PIPELINE_DIR"
+                            
+                            print_status "OK" "Log file and directory permissions fixed"
+                            
+                            # Try to start the service again
+                            print_status "INFO" "Attempting to restart service after permission fix"
+                            systemctl start "$SERVICE_NAME"
+                            sleep 2
+                            if systemctl is-active --quiet "$SERVICE_NAME"; then
+                                print_status "OK" "Service started successfully after permission fix"
+                            else
+                                print_status "ERROR" "Service still failing after permission fix"
                             fi
                         fi
                     fi
@@ -990,6 +1078,16 @@ generate_recommendations() {
 
 # Main execution
 main() {
+    # Check for specific command line options
+    if [[ "$1" == "--fix-permissions" ]]; then
+        echo -e "${BLUE}Media Pipeline Permission Fix${NC}"
+        echo "=================================="
+        echo
+        check_root
+        fix_permissions
+        exit 0
+    fi
+    
     echo -e "${BLUE}Media Pipeline Status Check and Fix Tool${NC}"
     echo "=============================================="
     echo
