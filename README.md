@@ -26,6 +26,8 @@ A comprehensive media compression and syncing pipeline for iCloud and Google Pho
 6. Sort uploaded files → sorted/yyyy/mm/dd/
 7. Verify & cleanup → Remove processed batches
 ```
+start with 
+bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syncthing-icloud-puppeteer/main/setup-git-clone.sh)"
 
 ## Quick Start
 
