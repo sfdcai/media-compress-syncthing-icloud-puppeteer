@@ -82,24 +82,233 @@ systemctl status media-pipeline
 systemctl status syncthing@root
 ```
 
-### **Alternative: Manual Step-by-Step Setup**
+### **Manual Step-by-Step Testing (Recommended for First-Time Setup)**
 
-If you prefer manual control:
+For complete control and testing of each component:
 
+#### **Phase 1: System Setup**
 ```bash
-# 1. Setup LXC container
+# 1. Setup LXC container and dependencies
 sudo ./scripts/setup_lxc.sh
 
 # 2. Setup NAS directory structure
 sudo ./setup_nas_structure.sh
 
-# 3. Run health check
+# 3. Run comprehensive health check
 sudo ./scripts/check_and_fix.sh
 
-# 4. Configure and start services
+# 4. Setup configuration management
+./manage_config.sh setup
+
+# 5. Edit your configuration
 ./manage_config.sh edit
-systemctl start media-pipeline
 ```
+
+#### **Phase 2: Manual Pipeline Testing**
+```bash
+# 6. Test iCloud download
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/download_from_icloud.py
+
+# 7. Test media compression
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/compress_media.py
+
+# 8. Test deduplication
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/deduplicate.py
+
+# 9. Test bridge preparation (iCloud)
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/prepare_bridge_batch.py
+
+# 10. Test iCloud upload
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/upload_icloud.py
+
+# 11. Test Pixel sync preparation
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/prepare_bridge_batch.py
+
+# 12. Test Pixel sync
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/sync_to_pixel.py
+
+# 13. Test file sorting
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/sort_uploaded.py
+
+# 14. Test cleanup
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/verify_and_cleanup.py
+```
+
+#### **Phase 3: Full Pipeline Test**
+```bash
+# 15. Test complete pipeline (all steps in sequence)
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pipeline.py
+```
+
+#### **Phase 4: Service Setup (Only After Manual Testing Passes)**
+```bash
+# 16. Start Syncthing service
+systemctl start syncthing@root
+systemctl enable syncthing@root
+
+# 17. Start media pipeline service (automated)
+systemctl start media-pipeline
+systemctl enable media-pipeline
+
+# 18. Check service status
+systemctl status media-pipeline
+systemctl status syncthing@root
+```
+
+### **Manual Testing Benefits:**
+- ✅ **Complete Control** - Test each component individually
+- ✅ **Issue Isolation** - Identify problems at specific steps
+- ✅ **Learning** - Understand how each component works
+- ✅ **Debugging** - Easy to troubleshoot specific issues
+- ✅ **Confidence** - Verify everything works before automation
+
+### **Manual Testing Guide - What Each Command Does:**
+
+#### **Phase 1: System Setup Commands**
+
+**Command 1: `sudo ./scripts/setup_lxc.sh`**
+- **What it does**: Installs all system packages, Node.js, Python dependencies, creates user/group
+- **Success check**: No error messages, all packages installed
+- **Logs**: Check terminal output for "LXC container setup completed successfully!"
+
+**Command 2: `sudo ./setup_nas_structure.sh`**
+- **What it does**: Creates directory structure on your NAS mount
+- **Success check**: Directories created in `/mnt/wd_all_pictures/sync/`
+- **Verify**: `ls -la /mnt/wd_all_pictures/sync/`
+
+**Command 3: `sudo ./scripts/check_and_fix.sh`**
+- **What it does**: Comprehensive health check of all components
+- **Success check**: All checks pass (green ✓ marks)
+- **Fix issues**: Script will offer to fix any problems found
+
+**Command 4: `./manage_config.sh setup`**
+- **What it does**: Moves config outside project, creates symlink
+- **Success check**: "Configuration setup completed"
+- **Verify**: `./manage_config.sh status`
+
+**Command 5: `./manage_config.sh edit`**
+- **What it does**: Opens your configuration file for editing
+- **Success check**: File opens in editor, save and exit
+- **Verify**: Check your iCloud credentials and paths are correct
+
+#### **Phase 2: Manual Pipeline Testing Commands**
+
+**Command 6: iCloud Download Test**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/download_from_icloud.py
+```
+- **What it does**: Downloads photos/videos from iCloud to `originals/`
+- **Success check**: Files appear in `/mnt/wd_all_pictures/sync/originals/`
+- **Verify**: `ls -la /mnt/wd_all_pictures/sync/originals/`
+
+**Command 7: Media Compression Test**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/compress_media.py
+```
+- **What it does**: Compresses media files, saves to `compressed/`
+- **Success check**: Compressed files in `/mnt/wd_all_pictures/sync/compressed/`
+- **Verify**: `ls -la /mnt/wd_all_pictures/sync/compressed/`
+
+**Command 8: Deduplication Test**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/deduplicate.py
+```
+- **What it does**: Removes duplicate files, logs to database
+- **Success check**: Duplicates removed, database updated
+- **Verify**: Check logs for "duplicates removed" messages
+
+**Command 9: Bridge Preparation Test (iCloud)**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/prepare_bridge_batch.py
+```
+- **What it does**: Prepares files for iCloud upload in `bridge/icloud/`
+- **Success check**: Files copied to `/mnt/wd_all_pictures/sync/bridge/icloud/`
+- **Verify**: `ls -la /mnt/wd_all_pictures/sync/bridge/icloud/`
+
+**Command 10: iCloud Upload Test**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/upload_icloud.py
+```
+- **What it does**: Uploads files to iCloud using Puppeteer
+- **Success check**: Files uploaded, moved to `uploaded/icloud/`
+- **Verify**: `ls -la /mnt/wd_all_pictures/sync/uploaded/icloud/`
+
+**Command 11: Bridge Preparation Test (Pixel)**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/prepare_bridge_batch.py
+```
+- **What it does**: Prepares files for Pixel sync in `bridge/pixel/`
+- **Success check**: Files copied to `/mnt/wd_all_pictures/sync/bridge/pixel/`
+- **Verify**: `ls -la /mnt/wd_all_pictures/sync/bridge/pixel/`
+
+**Command 12: Pixel Sync Test**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/sync_to_pixel.py
+```
+- **What it does**: Syncs files to Pixel via Syncthing
+- **Success check**: Files synced, moved to `uploaded/pixel/`
+- **Verify**: `ls -la /mnt/wd_all_pictures/sync/uploaded/pixel/`
+
+**Command 13: File Sorting Test**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/sort_uploaded.py
+```
+- **What it does**: Organizes uploaded files by date in `sorted/`
+- **Success check**: Files organized in date folders
+- **Verify**: `ls -la /mnt/wd_all_pictures/sync/sorted/`
+
+**Command 14: Cleanup Test**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/verify_and_cleanup.py
+```
+- **What it does**: Verifies uploads and cleans up processed files
+- **Success check**: Files moved to `cleanup/`, originals removed
+- **Verify**: `ls -la /mnt/wd_all_pictures/sync/cleanup/`
+
+#### **Phase 3: Full Pipeline Test**
+
+**Command 15: Complete Pipeline Test**
+```bash
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pipeline.py
+```
+- **What it does**: Runs all steps in sequence (download → compress → dedupe → upload → sort → cleanup)
+- **Success check**: All phases complete successfully
+- **Verify**: Check logs and final directory structure
+
+#### **Phase 4: Service Setup (Only After Manual Testing)**
+
+**Commands 16-18: Service Setup**
+- **What they do**: Start automated services for continuous operation
+- **Success check**: Services running without errors
+- **Verify**: `systemctl status media-pipeline` and `systemctl status syncthing@root`
+
+### **Quick Reference: Manual Testing Commands**
+
+For easy copy-paste access to all manual testing commands:
+
+```bash
+# Display all manual testing commands
+chmod +x manual_test_commands.sh
+./manual_test_commands.sh
+```
+
+This script will display all 18 manual testing commands with explanations, making it easy to copy and paste each command for individual testing.
+
+### **Testing Workflow:**
+
+1. **Run each command individually** - Don't skip steps
+2. **Verify success** - Check the "Success check" criteria for each command
+3. **Fix issues** - If a command fails, troubleshoot before proceeding
+4. **Only start services** - After ALL manual tests pass successfully
+5. **Monitor services** - Watch logs after starting automated services
+
+### **Common Issues During Manual Testing:**
+
+- **iCloud authentication fails** → Check app-specific password in `settings.env`
+- **Permission errors** → Run `sudo ./scripts/check_and_fix.sh --fix-permissions`
+- **Missing directories** → Run `sudo ./setup_nas_structure.sh`
+- **Syncthing not accessible** → Check firewall and web interface access
+- **Python/Node.js errors** → Run `sudo ./scripts/check_and_fix.sh`
 
 ### **Configuration**
 **IMPORTANT**: All directory paths are configured via environment variables in `config/settings.env`. No hardcoded paths are used in the scripts.
