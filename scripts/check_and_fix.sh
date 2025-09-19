@@ -73,7 +73,7 @@ check_root() {
 check_packages() {
     print_status "INFO" "Checking system packages..."
     
-    local packages=("python3" "ffmpeg" "exiftool" "rsync" "parallel" "pv" "curl" "wget" "unzip" "git")
+    local packages=("python3" "ffmpeg" "rsync" "parallel" "pv" "curl" "wget" "unzip" "git")
     local missing_packages=()
     
     for package in "${packages[@]}"; do
@@ -86,7 +86,11 @@ check_packages() {
     if ! command -v exiftool >/dev/null 2>&1; then
         if ! dpkg -l | grep -q "libimage-exiftool-perl"; then
             missing_packages+=("libimage-exiftool-perl")
+        else
+            print_status "OK" "exiftool is available via libimage-exiftool-perl"
         fi
+    else
+        print_status "OK" "exiftool is available"
     fi
     
     if [ ${#missing_packages[@]} -eq 0 ]; then
@@ -291,12 +295,12 @@ check_python_venv() {
         
         # Check if packages are installed
         if [ -f "$PIPELINE_DIR/requirements.txt" ]; then
-            local missing_packages=$(sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" list --format=freeze | cut -d= -f1)
+            local installed_packages=$(sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" list --format=freeze | cut -d= -f1)
             local required_packages=("icloudpd" "pillow" "ffmpeg-python" "python-dotenv" "supabase" "psutil")
             local missing=()
             
             for package in "${required_packages[@]}"; do
-                if ! echo "$missing_packages" | grep -q "^$package=="; then
+                if ! echo "$installed_packages" | grep -q "^$package$"; then
                     missing+=("$package")
                 fi
             done
@@ -494,6 +498,261 @@ test_pipeline() {
     fi
 }
 
+# Check Syncthing installation and status
+check_syncthing() {
+    print_status "INFO" "Checking Syncthing installation and status..."
+    
+    # Check if Syncthing is installed
+    if command -v syncthing >/dev/null 2>&1; then
+        print_status "OK" "Syncthing is installed"
+        
+        # Check Syncthing version
+        local syncthing_version=$(syncthing --version | head -n1 | awk '{print $2}')
+        print_status "OK" "Syncthing version: $syncthing_version"
+        
+        # Check if Syncthing service is running
+        if systemctl is-active syncthing@root >/dev/null 2>&1; then
+            print_status "OK" "Syncthing service is running"
+        elif systemctl is-active syncthing >/dev/null 2>&1; then
+            print_status "OK" "Syncthing service is running"
+        else
+            print_status "WARN" "Syncthing service is not running"
+            if ask_fix "Start Syncthing service"; then
+                apply_fix "Starting Syncthing service"
+                systemctl start syncthing@root || systemctl start syncthing
+                systemctl enable syncthing@root || systemctl enable syncthing
+                # Wait a moment for service to start
+                sleep 3
+                if systemctl is-active syncthing@root >/dev/null 2>&1 || systemctl is-active syncthing >/dev/null 2>&1; then
+                    print_status "OK" "Syncthing service started successfully"
+                else
+                    print_status "ERROR" "Failed to start Syncthing service"
+                    print_status "INFO" "Check logs with: journalctl -u syncthing@root -f"
+                fi
+            fi
+        fi
+        
+        # Check Syncthing config file location
+        local syncthing_config=""
+        if [ -f "/root/.local/state/syncthing/config.xml" ]; then
+            syncthing_config="/root/.local/state/syncthing/config.xml"
+        elif [ -f "/root/.config/syncthing/config.xml" ]; then
+            syncthing_config="/root/.config/syncthing/config.xml"
+        fi
+        
+        if [ -n "$syncthing_config" ]; then
+            print_status "OK" "Syncthing configuration exists at $syncthing_config"
+            
+            # Check Syncthing web interface port and binding
+            local syncthing_port=$(grep -o 'address="[^"]*"' "$syncthing_config" 2>/dev/null | grep -o '[0-9]*' | head -1)
+            local syncthing_address=$(grep -o 'address="[^"]*"' "$syncthing_config" 2>/dev/null | grep -o '[0-9.]*' | head -1)
+            
+            if [ -n "$syncthing_port" ]; then
+                print_status "OK" "Syncthing web interface port: $syncthing_port"
+                
+                # Check if GUI is bound to localhost only
+                if echo "$syncthing_address" | grep -q "127.0.0.1"; then
+                    print_status "WARN" "Syncthing GUI is bound to localhost only (127.0.0.1:$syncthing_port)"
+                    print_status "INFO" "This prevents external access to the web interface"
+                    if ask_fix "Configure Syncthing GUI to accept external connections (0.0.0.0:$syncthing_port)"; then
+                        apply_fix "Configuring Syncthing GUI for external access"
+                        # Backup original config
+                        cp "$syncthing_config" "$syncthing_config.backup"
+                        # Update the GUI address to bind to all interfaces
+                        sed -i 's/address="127.0.0.1:[0-9]*"/address="0.0.0.0:'$syncthing_port'"/g' "$syncthing_config"
+                        # Restart Syncthing service
+                        systemctl restart syncthing@root
+                        sleep 3
+                        print_status "OK" "Syncthing GUI configured for external access"
+                        print_status "INFO" "Web interface should now be accessible at http://$(ip route get 8.8.8.8 | awk '{print $7; exit}'):$syncthing_port"
+                    fi
+                elif echo "$syncthing_address" | grep -q "0.0.0.0"; then
+                    print_status "OK" "Syncthing GUI is configured for external access (0.0.0.0:$syncthing_port)"
+                else
+                    print_status "INFO" "Syncthing GUI address: $syncthing_address:$syncthing_port"
+                fi
+            else
+                print_status "WARN" "Could not determine Syncthing web interface port"
+            fi
+        else
+            print_status "WARN" "Syncthing configuration not found"
+        fi
+        
+    else
+        print_status "ERROR" "Syncthing is not installed"
+        if ask_fix "Install Syncthing"; then
+            apply_fix "Installing Syncthing"
+            # Use the latest installation method from apt.syncthing.net
+            mkdir -p /etc/apt/keyrings
+            curl -L -o /etc/apt/keyrings/syncthing-archive-keyring.gpg https://syncthing.net/release-key.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable-v2" | tee /etc/apt/sources.list.d/syncthing.list
+            apt update
+            apt install -y syncthing
+            systemctl enable syncthing@root
+        fi
+    fi
+}
+
+# Check system information
+check_system_info() {
+    print_status "INFO" "Checking system information..."
+    
+    # Get system IP addresses
+    local primary_ip=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null)
+    local all_ips=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1')
+    
+    if [ -n "$primary_ip" ]; then
+        print_status "OK" "Primary IP address: $primary_ip"
+    else
+        print_status "WARN" "Could not determine primary IP address"
+    fi
+    
+    if [ -n "$all_ips" ]; then
+        print_status "INFO" "All IP addresses: $(echo $all_ips | tr '\n' ' ')"
+    fi
+    
+    # Check disk space
+    local disk_usage=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//')
+    if [ "$disk_usage" -lt 80 ]; then
+        print_status "OK" "Disk usage: ${disk_usage}% (healthy)"
+    elif [ "$disk_usage" -lt 90 ]; then
+        print_status "WARN" "Disk usage: ${disk_usage}% (getting full)"
+    else
+        print_status "ERROR" "Disk usage: ${disk_usage}% (critical)"
+    fi
+    
+    # Check memory usage
+    local memory_usage=$(free | awk 'NR==2{printf "%.0f", $3*100/$2}')
+    if [ "$memory_usage" -lt 80 ]; then
+        print_status "OK" "Memory usage: ${memory_usage}% (healthy)"
+    elif [ "$memory_usage" -lt 90 ]; then
+        print_status "WARN" "Memory usage: ${memory_usage}% (high)"
+    else
+        print_status "ERROR" "Memory usage: ${memory_usage}% (critical)"
+    fi
+    
+    # Check CPU load
+    local cpu_load=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//')
+    print_status "INFO" "CPU load average: $cpu_load"
+    
+    # Check uptime
+    local uptime_info=$(uptime -p)
+    print_status "INFO" "System uptime: $uptime_info"
+}
+
+# Check SSH service
+check_ssh_service() {
+    print_status "INFO" "Checking SSH service..."
+    
+    if systemctl is-active ssh >/dev/null 2>&1; then
+        print_status "OK" "SSH service is running"
+    elif systemctl is-active sshd >/dev/null 2>&1; then
+        print_status "OK" "SSH service is running (sshd)"
+    else
+        print_status "WARN" "SSH service is not running"
+        if ask_fix "Start SSH service"; then
+            apply_fix "Starting SSH service"
+            systemctl start ssh || systemctl start sshd
+            systemctl enable ssh || systemctl enable sshd
+        fi
+    fi
+}
+
+# Check network ports and services
+check_network_services() {
+    print_status "INFO" "Checking network services and ports..."
+    
+    # Check common ports
+    local ports_to_check=("22" "80" "443" "8384" "22000")
+    local port_names=("SSH" "HTTP" "HTTPS" "Syncthing Web" "Syncthing Sync")
+    
+    for i in "${!ports_to_check[@]}"; do
+        local port="${ports_to_check[$i]}"
+        local name="${port_names[$i]}"
+        
+        if netstat -tlnp 2>/dev/null | grep -q ":$port "; then
+            print_status "OK" "$name (port $port) is listening"
+        else
+            print_status "INFO" "$name (port $port) is not listening"
+        fi
+    done
+    
+    # Check if firewall is active
+    if command -v ufw >/dev/null 2>&1; then
+        if ufw status | grep -q "Status: active"; then
+            print_status "OK" "UFW firewall is active"
+            local ufw_status=$(ufw status | grep -E "^\s*[0-9]" | wc -l)
+            print_status "INFO" "UFW rules: $ufw_status active rules"
+        else
+            print_status "WARN" "UFW firewall is inactive"
+        fi
+    fi
+}
+
+# Check mount points
+check_mount_points() {
+    print_status "INFO" "Checking mount points..."
+    
+    local mount_points=("/mnt/nas" "/mnt/syncthing")
+    
+    for mount in "${mount_points[@]}"; do
+        if mountpoint -q "$mount" 2>/dev/null; then
+            print_status "OK" "$mount is mounted"
+            local mount_info=$(df -h "$mount" | awk 'NR==2 {print $2 " total, " $4 " available"}')
+            print_status "INFO" "$mount: $mount_info"
+        else
+            print_status "WARN" "$mount is not mounted"
+        fi
+    done
+}
+
+# Generate recommendations
+generate_recommendations() {
+    print_status "INFO" "Generating system recommendations..."
+    
+    echo
+    echo -e "${BLUE}=== SYSTEM RECOMMENDATIONS ===${NC}"
+    echo
+    
+    # Disk space recommendations
+    local disk_usage=$(df -h / | awk 'NR==2 {print $5}' | sed 's/%//')
+    if [ "$disk_usage" -gt 70 ]; then
+        echo -e "${YELLOW}⚠ Disk Space:${NC} Consider cleaning up old files or expanding storage"
+        echo "   - Check /opt/media-pipeline/logs for old log files"
+        echo "   - Review /opt/media-pipeline/temp for temporary files"
+        echo "   - Consider archiving old compressed media"
+    fi
+    
+    # Memory recommendations
+    local memory_usage=$(free | awk 'NR==2{printf "%.0f", $3*100/$2}')
+    if [ "$memory_usage" -gt 80 ]; then
+        echo -e "${YELLOW}⚠ Memory Usage:${NC} High memory usage detected"
+        echo "   - Consider adding more RAM"
+        echo "   - Check for memory leaks in running processes"
+    fi
+    
+    # Security recommendations
+    echo -e "${BLUE}🔒 Security:${NC}"
+    echo "   - Ensure SSH keys are configured (disable password auth)"
+    echo "   - Keep system packages updated regularly"
+    echo "   - Configure UFW firewall rules for Syncthing ports"
+    echo "   - Use strong passwords for all services"
+    
+    # Performance recommendations
+    echo -e "${BLUE}⚡ Performance:${NC}"
+    echo "   - Consider using SSD storage for better I/O performance"
+    echo "   - Monitor CPU usage during media processing"
+    echo "   - Optimize Syncthing settings for your network"
+    
+    # Backup recommendations
+    echo -e "${BLUE}💾 Backup:${NC}"
+    echo "   - Set up automated backups of configuration files"
+    echo "   - Test restore procedures regularly"
+    echo "   - Consider off-site backup for critical data"
+    
+    echo
+}
+
 # Main execution
 main() {
     echo -e "${BLUE}Media Pipeline Status Check and Fix Tool${NC}"
@@ -518,6 +777,12 @@ main() {
     check_cron_job
     check_config
     test_pipeline
+    check_syncthing
+    check_ssh_service
+    check_system_info
+    check_network_services
+    check_mount_points
+    generate_recommendations
     
     echo
     echo "=============================================="
@@ -535,14 +800,54 @@ main() {
     fi
     
     echo
-    echo "Service management commands:"
+    echo -e "${BLUE}=== SYSTEM ACCESS INFORMATION ===${NC}"
+    
+    # Display system IP and ports
+    local primary_ip=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null)
+    local syncthing_config=""
+    if [ -f "/root/.local/state/syncthing/config.xml" ]; then
+        syncthing_config="/root/.local/state/syncthing/config.xml"
+    elif [ -f "/root/.config/syncthing/config.xml" ]; then
+        syncthing_config="/root/.config/syncthing/config.xml"
+    fi
+    local syncthing_port="8384"  # Default port
+    if [ -n "$syncthing_config" ]; then
+        syncthing_port=$(grep -o 'address="[^"]*"' "$syncthing_config" 2>/dev/null | grep -o '[0-9]*' | head -1)
+        [ -z "$syncthing_port" ] && syncthing_port="8384"
+    fi
+    
+    if [ -n "$primary_ip" ]; then
+        echo "🌐 System IP Address: $primary_ip"
+    fi
+    
+    if [ -n "$syncthing_port" ]; then
+        echo "🔄 Syncthing Web Interface: http://$primary_ip:$syncthing_port"
+    else
+        echo "🔄 Syncthing Web Interface: http://$primary_ip:8384 (default)"
+    fi
+    
+    echo "🔧 SSH Access: ssh root@$primary_ip"
+    echo
+    
+    echo -e "${BLUE}=== SERVICE MANAGEMENT ===${NC}"
+    echo "Media Pipeline Service:"
     echo "  Start:   systemctl start $SERVICE_NAME"
     echo "  Stop:    systemctl stop $SERVICE_NAME"
     echo "  Status:  systemctl status $SERVICE_NAME"
     echo "  Logs:    journalctl -u $SERVICE_NAME -f"
     echo
-    echo "Manual test:"
+    echo "Syncthing Service:"
+    echo "  Start:   systemctl start syncthing@root"
+    echo "  Stop:    systemctl stop syncthing@root"
+    echo "  Status:  systemctl status syncthing@root"
+    echo "  Logs:    journalctl -u syncthing@root -f"
+    echo
+    echo -e "${BLUE}=== TESTING ===${NC}"
+    echo "Manual pipeline test:"
     echo "  sudo -u $USER_NAME $PIPELINE_DIR/venv/bin/python $PIPELINE_DIR/scripts/run_pipeline.py"
+    echo
+    echo "Check system health:"
+    echo "  sudo ./scripts/check_and_fix.sh"
 }
 
 # Run main function
