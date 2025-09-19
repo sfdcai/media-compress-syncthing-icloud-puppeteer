@@ -77,6 +77,9 @@ clean_git_repository() {
     # Reset any local changes
     git reset --hard HEAD
     
+    # Stash any remaining changes
+    git stash push -m "Auto-stash before cleanup" 2>/dev/null || true
+    
     print_status "SUCCESS" "Git repository cleaned"
 }
 
@@ -127,8 +130,18 @@ restore_user_data() {
 update_from_git() {
     print_status "INFO" "Updating from Git repository..."
     
-    # Pull latest changes
-    git pull origin main
+    # Fetch latest changes
+    git fetch origin main
+    
+    # Check if there are any local changes
+    if ! git diff --quiet HEAD origin/main; then
+        print_status "INFO" "Local changes detected, forcing update..."
+        # Force reset to match remote
+        git reset --hard origin/main
+    else
+        # Pull latest changes
+        git pull origin main
+    fi
     
     print_status "SUCCESS" "Git update completed"
 }
