@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_DIR="$HOME/.config/media-pipeline"
+CONFIG_DIR="/opt/media-pipeline/.config"
 ENV_FILE="$CONFIG_DIR/settings.env"
 PROJECT_ENV="$PROJECT_DIR/config/settings.env"
 
@@ -47,13 +47,17 @@ print_header() {
 setup_config_directory() {
     print_status "INFO" "Setting up configuration directory..."
     
-    # Create config directory
+    # Create config directory with proper permissions
     mkdir -p "$CONFIG_DIR"
+    chown media-pipeline:media-pipeline "$CONFIG_DIR"
+    chmod 755 "$CONFIG_DIR"
     
     # Copy environment file if it doesn't exist
     if [ ! -f "$ENV_FILE" ]; then
         if [ -f "$PROJECT_ENV" ]; then
             cp "$PROJECT_ENV" "$ENV_FILE"
+            chown media-pipeline:media-pipeline "$ENV_FILE"
+            chmod 644 "$ENV_FILE"
             print_status "SUCCESS" "Copied config/settings.env to $ENV_FILE"
         else
             print_status "WARNING" "No config/settings.env found in project, creating template..."

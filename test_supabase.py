@@ -18,11 +18,26 @@ except ImportError:
     # Try to load from the virtual environment's settings
     venv_settings = '/opt/media-pipeline/config/settings.env'
     if os.path.exists(venv_settings):
-        with open(venv_settings, 'r') as f:
-            for line in f:
-                if '=' in line and not line.startswith('#'):
-                    key, value = line.strip().split('=', 1)
-                    os.environ[key] = value.strip('"').strip("'")
+        try:
+            with open(venv_settings, 'r') as f:
+                for line in f:
+                    if '=' in line and not line.startswith('#'):
+                        key, value = line.strip().split('=', 1)
+                        os.environ[key] = value.strip('"').strip("'")
+        except PermissionError:
+            print("⚠️  Warning: Cannot read settings.env due to permissions")
+            # Try to read from the actual file location
+            actual_file = '/root/.config/media-pipeline/settings.env'
+            if os.path.exists(actual_file):
+                try:
+                    with open(actual_file, 'r') as f:
+                        for line in f:
+                            if '=' in line and not line.startswith('#'):
+                                key, value = line.strip().split('=', 1)
+                                os.environ[key] = value.strip('"').strip("'")
+                except PermissionError:
+                    print("❌ Error: Cannot read settings file due to permissions")
+                    print("Run: sudo chmod 644 /root/.config/media-pipeline/settings.env")
 
 # Add the scripts directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
