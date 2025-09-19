@@ -14,18 +14,18 @@ from utils import (
     update_batch_status, get_files_by_status, retry
 )
 
-def get_batch_directories(batch_dir):
-    """Get all batch directories"""
-    if not os.path.exists(batch_dir):
+def get_files_in_bridge(bridge_dir):
+    """Get all files in bridge directory (no numbered batch folders)"""
+    if not os.path.exists(bridge_dir):
         return []
     
-    batch_dirs = []
-    for item in os.listdir(batch_dir):
-        item_path = os.path.join(batch_dir, item)
-        if os.path.isdir(item_path) and item.startswith("batch_"):
-            batch_dirs.append(item_path)
+    files = []
+    for item in os.listdir(bridge_dir):
+        item_path = os.path.join(bridge_dir, item)
+        if os.path.isfile(item_path):
+            files.append(item_path)
     
-    return sorted(batch_dirs)
+    return sorted(files)
 
 def validate_node_environment():
     """Validate Node.js environment and dependencies"""
@@ -58,14 +58,13 @@ def validate_node_environment():
         return False
 
 @retry(max_attempts=3, delay=30)
-def upload_batch_to_icloud(batch_path, interactive=False):
-    """Upload a single batch to iCloud using Puppeteer"""
+def upload_files_to_icloud(bridge_dir, interactive=False):
+    """Upload all files from bridge directory to iCloud using Puppeteer"""
     try:
-        batch_name = os.path.basename(batch_path)
-        log_step("upload_icloud", f"Starting upload for {batch_name}", "info")
+        log_step("upload_icloud", f"Starting upload from {bridge_dir}", "info")
         
         # Build command
-        cmd = ["node", "scripts/upload_icloud.js", "--dir", batch_path]
+        cmd = ["node", "scripts/upload_icloud.js", "--dir", bridge_dir]
         
         if interactive:
             cmd.append("--interactive")
@@ -79,21 +78,21 @@ def upload_batch_to_icloud(batch_path, interactive=False):
         )
         
         if result.returncode == 0:
-            log_step("upload_icloud", f"Successfully uploaded {batch_name}", "success")
+            log_step("upload_icloud", f"Successfully uploaded files from {bridge_dir}", "success")
             return True
         else:
-            log_step("upload_icloud", f"Upload failed for {batch_name}: {result.stderr}", "error")
+            log_step("upload_icloud", f"Upload failed from {bridge_dir}: {result.stderr}", "error")
             return False
             
     except subprocess.TimeoutExpired:
-        log_step("upload_icloud", f"Upload timeout for {batch_name}", "error")
+        log_step("upload_icloud", f"Upload timeout for {bridge_dir}", "error")
         return False
     except Exception as e:
-        log_step("upload_icloud", f"Error uploading {batch_path}: {e}", "error")
+        log_step("upload_icloud", f"Error uploading from {bridge_dir}: {e}", "error")
         return False
 
-def upload_to_icloud(batch_dir, interactive=False):
-    """Upload all batches to iCloud"""
+def upload_to_icloud(bridge_dir, interactive=False):
+    """Upload all files from bridge directory to iCloud"""
     if not get_feature_toggle("ENABLE_ICLOUD_UPLOAD"):
         log_step("upload_icloud", "iCloud upload is disabled, skipping", "info")
         return True
@@ -103,52 +102,35 @@ def upload_to_icloud(batch_dir, interactive=False):
         log_step("upload_icloud", "Node.js environment validation failed", "error")
         return False
     
-    # Validate batch directory
-    if not os.path.exists(batch_dir):
-        log_step("upload_icloud", f"Batch directory {batch_dir} does not exist", "error")
+    # Validate bridge directory
+    if not os.path.exists(bridge_dir):
+        log_step("upload_icloud", f"Bridge directory {bridge_dir} does not exist", "error")
         return False
     
-    log_step("upload_icloud", f"Starting iCloud upload from {batch_dir}", "info")
-    
-    # Get all batch directories
-    batch_dirs = get_batch_directories(batch_dir)
-    
-    if not batch_dirs:
-        log_step("upload_icloud", "No batches found to upload", "info")
+    # Check if there are files to upload
+    files = get_files_in_bridge(bridge_dir)
+    if not files:
+        log_step("upload_icloud", "No files found to upload", "info")
         return True
     
-    log_step("upload_icloud", f"Found {len(batch_dirs)} batches to upload", "info")
+    log_step("upload_icloud", f"Found {len(files)} files to upload from {bridge_dir}", "info")
     
-    # Upload each batch
-    successful_uploads = 0
-    failed_uploads = 0
-    
-    for batch_path in batch_dirs:
-        batch_name = os.path.basename(batch_path)
-        log_step("upload_icloud", f"Uploading {batch_name}", "info")
-        
-        if upload_batch_to_icloud(batch_path, interactive):
-            successful_uploads += 1
-            
-            # Update batch status in database
-            # Note: This would need batch_id from the database
-            # For now, we'll just log the success
-            
-        else:
-            failed_uploads += 1
-    
-    # Summary
-    log_step("upload_icloud", f"iCloud upload completed: {successful_uploads} successful, {failed_uploads} failed", "success")
-    return failed_uploads == 0
+    # Upload all files
+    if upload_files_to_icloud(bridge_dir, interactive):
+        log_step("upload_icloud", "iCloud upload completed successfully", "success")
+        return True
+    else:
+        log_step("upload_icloud", "iCloud upload failed", "error")
+        return False
 
 def main():
     """Main iCloud upload function"""
     # Get configuration
-    batch_dir = os.getenv("BRIDGE_ICLOUD_DIR", "bridge/icloud")
+    bridge_dir = os.getenv("BRIDGE_ICLOUD_DIR", "bridge/icloud")
     interactive = os.getenv("ICLOUD_INTERACTIVE", "false").lower() == "true"
     
     # Run upload
-    success = upload_to_icloud(batch_dir, interactive)
+    success = upload_to_icloud(bridge_dir, interactive)
     
     if success:
         log_step("upload_icloud", "iCloud upload completed successfully", "success")

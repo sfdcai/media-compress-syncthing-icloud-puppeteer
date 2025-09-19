@@ -81,17 +81,17 @@ def run_compression():
         log_step("pipeline", f"Compression phase failed: {e}", "error")
         return False
 
-def run_batch_preparation():
-    """Run batch preparation"""
-    log_step("pipeline", "Starting batch preparation phase", "info")
+def run_file_preparation():
+    """Run file preparation for uploads"""
+    log_step("pipeline", "Starting file preparation phase", "info")
     
     try:
-        from prepare_bridge_batch import main as batch_main
-        batch_main()
-        log_step("pipeline", "Batch preparation phase completed", "success")
+        from prepare_bridge_batch import main as file_main
+        file_main()
+        log_step("pipeline", "File preparation phase completed", "success")
         return True
     except Exception as e:
-        log_step("pipeline", f"Batch preparation phase failed: {e}", "error")
+        log_step("pipeline", f"File preparation phase failed: {e}", "error")
         return False
 
 def run_icloud_upload():
@@ -212,7 +212,7 @@ def main():
         ("Download", run_download),
         ("Deduplication", run_deduplication),
         ("Compression", run_compression),
-        ("Batch Preparation", run_batch_preparation),
+        ("File Preparation", run_file_preparation),
         ("iCloud Upload", run_icloud_upload),
         ("Pixel Upload", run_pixel_upload),
         ("Sorting", run_sorting),

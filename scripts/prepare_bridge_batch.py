@@ -32,27 +32,26 @@ def get_media_files(directory, extensions=None):
     
     return media_files
 
-def create_batch_from_files(files, batch_dir, batch_type, batch_number):
-    """Create a batch from a list of files"""
+def copy_files_to_bridge(files, bridge_dir, batch_type):
+    """Copy files directly to bridge directory (no numbered batches)"""
     try:
-        # Create batch directory
-        batch_path = os.path.join(batch_dir, f"batch_{batch_number}")
-        ensure_directory_exists(batch_path)
+        # Ensure bridge directory exists
+        ensure_directory_exists(bridge_dir)
         
-        # Copy files to batch directory
+        # Copy files to bridge directory
         copied_files = []
         total_size_gb = 0
         
         for file_path in files:
             try:
                 filename = os.path.basename(file_path)
-                dest_path = os.path.join(batch_path, filename)
+                dest_path = os.path.join(bridge_dir, filename)
                 
                 # Handle filename conflicts
                 counter = 1
                 while os.path.exists(dest_path):
                     name, ext = os.path.splitext(filename)
-                    dest_path = os.path.join(batch_path, f"{name}_{counter}{ext}")
+                    dest_path = os.path.join(bridge_dir, f"{name}_{counter}{ext}")
                     counter += 1
                 
                 # Copy file
@@ -64,10 +63,10 @@ def create_batch_from_files(files, batch_dir, batch_type, batch_number):
                 total_size_gb += file_size_gb
                 
             except Exception as e:
-                log_step("batch_creation", f"Failed to copy {file_path}: {e}", "error")
+                log_step("file_copy", f"Failed to copy {file_path}: {e}", "error")
                 continue
         
-        # Create batch record in database
+        # Create batch record in database (for tracking purposes)
         batch_id = create_batch_record(
             batch_type=batch_type,
             file_count=len(copied_files),
@@ -75,86 +74,55 @@ def create_batch_from_files(files, batch_dir, batch_type, batch_number):
         )
         
         if batch_id:
-            log_step("batch_creation", f"Created batch_{batch_number} for {batch_type} with {len(copied_files)} files ({total_size_gb:.2f} GB)", "success")
+            log_step("file_copy", f"Copied {len(copied_files)} files to {bridge_dir} ({total_size_gb:.2f} GB)", "success")
             return batch_id, len(copied_files), total_size_gb
         else:
-            log_step("batch_creation", f"Failed to create batch record for batch_{batch_number}", "error")
+            log_step("file_copy", f"Failed to create batch record", "error")
             return None, 0, 0
             
     except Exception as e:
-        log_step("batch_creation", f"Error creating batch_{batch_number}: {e}", "error")
+        log_step("file_copy", f"Failed to copy files to bridge: {e}", "error")
         return None, 0, 0
 
-def prepare_batches_for_type(source_dir, batch_dir, batch_type, use_compressed=False):
-    """Prepare batches for a specific upload type"""
+def prepare_files_for_type(source_dir, bridge_dir, batch_type, use_compressed=False):
+    """Prepare files for a specific upload type (simplified - no numbered batches)"""
     if not os.path.exists(source_dir):
-        log_step("batch_preparation", f"Source directory {source_dir} does not exist", "error")
+        log_step("file_preparation", f"Source directory {source_dir} does not exist", "error")
         return False
     
-    # Ensure batch directory exists
-    ensure_directory_exists(batch_dir)
+    # Clear existing files in bridge directory
+    if os.path.exists(bridge_dir):
+        for item in os.listdir(bridge_dir):
+            item_path = os.path.join(bridge_dir, item)
+            if os.path.isfile(item_path):
+                os.remove(item_path)
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+        log_step("file_preparation", f"Cleared existing files in {bridge_dir}", "info")
     
-    log_step("batch_preparation", f"Preparing batches for {batch_type} from {source_dir}", "info")
+    log_step("file_preparation", f"Preparing files for {batch_type} from {source_dir}", "info")
     
     # Get all media files
     media_files = get_media_files(source_dir)
     
     if not media_files:
-        log_step("batch_preparation", f"No media files found in {source_dir}", "info")
+        log_step("file_preparation", f"No media files found in {source_dir}", "info")
         return True
     
-    # Sort files by name for consistent batching
+    # Sort files by name for consistent processing
     media_files.sort()
     
-    # Create batches
-    current_batch = []
-    current_size_gb = 0
-    batch_number = 1
-    total_batches = 0
-    total_files = 0
-    total_size_gb = 0
+    # Copy all files directly to bridge directory
+    batch_id, file_count, total_size_gb = copy_files_to_bridge(
+        media_files, bridge_dir, batch_type
+    )
     
-    for file_path in media_files:
-        file_size_gb = get_file_size_gb(file_path)
-        
-        # Check if adding this file would exceed limits
-        if (len(current_batch) >= MAX_BATCH_FILES or 
-            current_size_gb + file_size_gb > MAX_BATCH_SIZE_GB):
-            
-            # Create batch from current files
-            if current_batch:
-                batch_id, file_count, batch_size = create_batch_from_files(
-                    current_batch, batch_dir, batch_type, batch_number
-                )
-                
-                if batch_id:
-                    total_batches += 1
-                    total_files += file_count
-                    total_size_gb += batch_size
-                    batch_number += 1
-                
-                # Reset for next batch
-                current_batch = []
-                current_size_gb = 0
-        
-        # Add file to current batch
-        current_batch.append(file_path)
-        current_size_gb += file_size_gb
-    
-    # Create final batch if there are remaining files
-    if current_batch:
-        batch_id, file_count, batch_size = create_batch_from_files(
-            current_batch, batch_dir, batch_type, batch_number
-        )
-        
-        if batch_id:
-            total_batches += 1
-            total_files += file_count
-            total_size_gb += batch_size
-    
-    # Summary
-    log_step("batch_preparation", f"Created {total_batches} batches for {batch_type}: {total_files} files, {total_size_gb:.2f} GB total", "success")
-    return True
+    if batch_id:
+        log_step("file_preparation", f"Prepared {file_count} files for {batch_type}: {total_size_gb:.2f} GB total", "success")
+        return True
+    else:
+        log_step("file_preparation", f"Failed to prepare files for {batch_type}", "error")
+        return False
 
 def main():
     """Main batch preparation function"""
@@ -175,27 +143,27 @@ def main():
     
     success = True
     
-    # Prepare batches for iCloud (use compressed files if compression is enabled)
+    # Prepare files for iCloud (use compressed files if compression is enabled)
     if enable_icloud:
         if enable_compression and os.path.exists(compressed_dir):
             source_dir = compressed_dir
-            log_step("batch_preparation", "Using compressed files for iCloud batches", "info")
+            log_step("file_preparation", "Using compressed files for iCloud upload", "info")
         else:
             source_dir = originals_dir
-            log_step("batch_preparation", "Using original files for iCloud batches", "info")
+            log_step("file_preparation", "Using original files for iCloud upload", "info")
         
-        if not prepare_batches_for_type(source_dir, bridge_icloud_dir, "icloud"):
+        if not prepare_files_for_type(source_dir, bridge_icloud_dir, "icloud"):
             success = False
     
-    # Prepare batches for Pixel (always use original files)
+    # Prepare files for Pixel (always use original files)
     if enable_pixel:
-        if not prepare_batches_for_type(originals_dir, bridge_pixel_dir, "pixel"):
+        if not prepare_files_for_type(originals_dir, bridge_pixel_dir, "pixel"):
             success = False
     
     if success:
-        log_step("batch_preparation", "Batch preparation completed successfully", "success")
+        log_step("file_preparation", "File preparation completed successfully", "success")
     else:
-        log_step("batch_preparation", "Batch preparation failed", "error")
+        log_step("file_preparation", "File preparation failed", "error")
         sys.exit(1)
 
 if __name__ == "__main__":

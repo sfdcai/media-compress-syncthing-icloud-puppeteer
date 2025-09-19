@@ -1118,6 +1118,7 @@ main() {
     check_system_info
     check_network_services
     check_mount_points
+    check_nas_structure
     generate_recommendations
     
     echo
@@ -1184,6 +1185,85 @@ main() {
     echo
     echo "Check system health:"
     echo "  sudo ./scripts/check_and_fix.sh"
+}
+
+check_nas_structure() {
+    echo -e "${BLUE}ℹ Checking NAS directory structure...${NC}"
+    
+    # Get NAS base directory from settings
+    local nas_base=""
+    if [ -f "$PIPELINE_DIR/config/settings.env" ]; then
+        nas_base=$(grep "^NAS_MOUNT=" "$PIPELINE_DIR/config/settings.env" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+    fi
+    
+    if [ -z "$nas_base" ]; then
+        echo -e "${YELLOW}⚠ NAS_MOUNT not configured in settings.env${NC}"
+        return 0
+    fi
+    
+    # Required directories
+    local required_dirs=(
+        "$nas_base"
+        "$nas_base/originals"
+        "$nas_base/compressed"
+        "$nas_base/bridge"
+        "$nas_base/bridge/icloud"
+        "$nas_base/bridge/pixel"
+        "$nas_base/sorted"
+        "$nas_base/temp"
+        "$nas_base/cleanup"
+        "$nas_base/logs"
+    )
+    
+    local missing_dirs=()
+    local existing_dirs=()
+    
+    for dir in "${required_dirs[@]}"; do
+        if [ -d "$dir" ]; then
+            existing_dirs+=("$dir")
+        else
+            missing_dirs+=("$dir")
+        fi
+    done
+    
+    if [ ${#missing_dirs[@]} -eq 0 ]; then
+        echo -e "${GREEN}✓ All NAS directories exist${NC}"
+        echo -e "${GREEN}✓ NAS structure is properly configured${NC}"
+    else
+        echo -e "${YELLOW}⚠ Missing NAS directories:${NC}"
+        for dir in "${missing_dirs[@]}"; do
+            echo -e "${YELLOW}  - $dir${NC}"
+        done
+        
+        if ask_fix "Create missing NAS directories"; then
+            echo -e "${BLUE}ℹ Creating missing NAS directories...${NC}"
+            
+            for dir in "${missing_dirs[@]}"; do
+                mkdir -p "$dir"
+                echo -e "${GREEN}✓ Created: $dir${NC}"
+            done
+            
+            # Set proper ownership and permissions
+            chown -R "$USER_NAME:$USER_NAME" "$nas_base"
+            chmod -R 755 "$nas_base"
+            chmod -R 644 "$nas_base/logs" 2>/dev/null || true
+            
+            echo -e "${GREEN}✓ NAS directory structure created successfully${NC}"
+        fi
+    fi
+    
+    # Check permissions
+    local owner=$(stat -c '%U:%G' "$nas_base" 2>/dev/null || echo "unknown")
+    if [[ "$owner" == "$USER_NAME:$USER_NAME" ]]; then
+        echo -e "${GREEN}✓ NAS directory ownership is correct ($owner)${NC}"
+    else
+        echo -e "${YELLOW}⚠ NAS directory ownership is $owner (expected: $USER_NAME:$USER_NAME)${NC}"
+        
+        if ask_fix "Fix NAS directory ownership"; then
+            chown -R "$USER_NAME:$USER_NAME" "$nas_base"
+            echo -e "${GREEN}✓ Fixed NAS directory ownership${NC}"
+        fi
+    fi
 }
 
 # Run main function

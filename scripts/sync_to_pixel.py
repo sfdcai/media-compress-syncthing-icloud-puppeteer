@@ -14,42 +14,60 @@ from utils import (
     update_batch_status, get_files_by_status, retry
 )
 
-def get_batch_directories(batch_dir):
-    """Get all batch directories"""
-    if not os.path.exists(batch_dir):
+def get_files_in_bridge(bridge_dir):
+    """Get all files in bridge directory (no numbered batch folders)"""
+    if not os.path.exists(bridge_dir):
         return []
     
-    batch_dirs = []
-    for item in os.listdir(batch_dir):
-        item_path = os.path.join(batch_dir, item)
-        if os.path.isdir(item_path) and item.startswith("batch_"):
-            batch_dirs.append(item_path)
+    files = []
+    for item in os.listdir(bridge_dir):
+        item_path = os.path.join(bridge_dir, item)
+        if os.path.isfile(item_path):
+            files.append(item_path)
     
-    return sorted(batch_dirs)
+    return sorted(files)
 
 @retry(max_attempts=3, delay=10)
-def sync_batch_to_pixel(batch_path, sync_folder):
-    """Sync a single batch to Pixel Syncthing folder"""
+def sync_files_to_pixel(bridge_dir, sync_folder):
+    """Sync all files from bridge directory to Pixel Syncthing folder"""
     try:
-        batch_name = os.path.basename(batch_path)
-        sync_batch_path = os.path.join(sync_folder, batch_name)
+        # Get all files in bridge directory
+        files = get_files_in_bridge(bridge_dir)
         
-        # Check if batch already exists in sync folder
-        if os.path.exists(sync_batch_path):
-            log_step("sync_to_pixel", f"Batch {batch_name} already exists in sync folder", "info")
+        if not files:
+            log_step("sync_to_pixel", "No files found in bridge directory", "info")
             return True
         
-        # Move batch to sync folder
-        shutil.move(batch_path, sync_batch_path)
+        # Ensure sync folder exists
+        ensure_directory_exists(sync_folder)
         
-        # Ensure proper permissions
-        ensure_directory_exists(sync_batch_path)
+        # Copy files to sync folder
+        copied_files = 0
+        for file_path in files:
+            try:
+                filename = os.path.basename(file_path)
+                dest_path = os.path.join(sync_folder, filename)
+                
+                # Handle filename conflicts
+                counter = 1
+                while os.path.exists(dest_path):
+                    name, ext = os.path.splitext(filename)
+                    dest_path = os.path.join(sync_folder, f"{name}_{counter}{ext}")
+                    counter += 1
+                
+                # Copy file
+                shutil.copy2(file_path, dest_path)
+                copied_files += 1
+                
+            except Exception as e:
+                log_step("sync_to_pixel", f"Failed to copy {file_path}: {e}", "error")
+                continue
         
-        log_step("sync_to_pixel", f"Successfully synced {batch_name} to Pixel folder", "success")
+        log_step("sync_to_pixel", f"Successfully synced {copied_files} files to Pixel folder", "success")
         return True
         
     except Exception as e:
-        log_step("sync_to_pixel", f"Failed to sync batch {batch_path}: {e}", "error")
+        log_step("sync_to_pixel", f"Failed to sync files from {bridge_dir}: {e}", "error")
         return False
 
 def wait_for_syncthing_sync(sync_folder, timeout=300):
@@ -68,67 +86,39 @@ def wait_for_syncthing_sync(sync_folder, timeout=300):
     log_step("sync_to_pixel", "Syncthing sync timeout reached", "warning")
     return True
 
-def sync_to_pixel(batch_dir, sync_folder):
-    """Sync all batches to Pixel Syncthing folder"""
+def sync_to_pixel(bridge_dir, sync_folder):
+    """Sync all files from bridge directory to Pixel Syncthing folder"""
     if not get_feature_toggle("ENABLE_PIXEL_UPLOAD"):
         log_step("sync_to_pixel", "Pixel upload is disabled, skipping", "info")
         return True
     
     # Validate directories
-    if not os.path.exists(batch_dir):
-        log_step("sync_to_pixel", f"Batch directory {batch_dir} does not exist", "error")
+    if not os.path.exists(bridge_dir):
+        log_step("sync_to_pixel", f"Bridge directory {bridge_dir} does not exist", "error")
         return False
     
-    if not os.path.exists(sync_folder):
-        log_step("sync_to_pixel", f"Sync folder {sync_folder} does not exist", "error")
-        return False
+    log_step("sync_to_pixel", f"Starting Pixel sync from {bridge_dir} to {sync_folder}", "info")
     
-    log_step("sync_to_pixel", f"Starting Pixel sync from {batch_dir} to {sync_folder}", "info")
-    
-    # Get all batch directories
-    batch_dirs = get_batch_directories(batch_dir)
-    
-    if not batch_dirs:
-        log_step("sync_to_pixel", "No batches found to sync", "info")
-        return True
-    
-    log_step("sync_to_pixel", f"Found {len(batch_dirs)} batches to sync", "info")
-    
-    # Sync each batch
-    successful_syncs = 0
-    failed_syncs = 0
-    
-    for batch_path in batch_dirs:
-        batch_name = os.path.basename(batch_path)
-        log_step("sync_to_pixel", f"Syncing {batch_name}", "info")
-        
-        if sync_batch_to_pixel(batch_path, sync_folder):
-            successful_syncs += 1
-            
-            # Update batch status in database
-            # Note: This would need batch_id from the database
-            # For now, we'll just log the success
-            
-        else:
-            failed_syncs += 1
-    
-    # Wait for Syncthing to process files
-    if successful_syncs > 0:
+    # Sync all files from bridge directory
+    if sync_files_to_pixel(bridge_dir, sync_folder):
+        # Wait for Syncthing to process files
         sync_timeout = int(os.getenv("PIXEL_SYNC_TIMEOUT", "300"))
         wait_for_syncthing_sync(sync_folder, sync_timeout)
-    
-    # Summary
-    log_step("sync_to_pixel", f"Pixel sync completed: {successful_syncs} successful, {failed_syncs} failed", "success")
-    return failed_syncs == 0
+        
+        log_step("sync_to_pixel", "Pixel sync completed successfully", "success")
+        return True
+    else:
+        log_step("sync_to_pixel", "Pixel sync failed", "error")
+        return False
 
 def main():
     """Main Pixel sync function"""
     # Get configuration
-    batch_dir = os.getenv("BRIDGE_PIXEL_DIR", "bridge/pixel")
+    bridge_dir = os.getenv("BRIDGE_PIXEL_DIR", "bridge/pixel")
     sync_folder = os.getenv("PIXEL_SYNC_FOLDER", "/mnt/syncthing/pixel")
     
     # Run sync
-    success = sync_to_pixel(batch_dir, sync_folder)
+    success = sync_to_pixel(bridge_dir, sync_folder)
     
     if success:
         log_step("sync_to_pixel", "Pixel sync completed successfully", "success")

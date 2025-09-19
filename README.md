@@ -19,12 +19,12 @@ A comprehensive media compression and syncing pipeline for iCloud and Google Pho
 1. Download originals from iCloud → originals/
 2. Deduplicate files → Remove duplicates, track in database
 3. Compress media → compressed/ (with progressive compression)
-4. Prepare batches → bridge/icloud/ & bridge/pixel/
+4. Prepare files → bridge/icloud/ & bridge/pixel/ (direct files, no numbered batches)
 5. Upload:
-   - iCloud: Puppeteer automation → uploaded/icloud/
-   - Pixel: Syncthing sync → uploaded/pixel/
+   - iCloud: Puppeteer automation → processes all files in bridge/icloud/
+   - Pixel: Syncthing sync → syncs all files from bridge/pixel/
 6. Sort uploaded files → sorted/yyyy/mm/dd/
-7. Verify & cleanup → Remove processed batches
+7. Verify & cleanup → Remove processed files
 ```
 start with 
 bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syncthing-icloud-puppeteer/main/setup-git-clone.sh)"
@@ -62,7 +62,20 @@ NAS_MOUNT=/mnt/nas/photos
 PIXEL_SYNC_FOLDER=/mnt/syncthing/pixel
 ```
 
-### 3. Run Pipeline
+### 3. Health Check & Setup
+```bash
+# Run comprehensive health check (includes NAS structure setup)
+sudo ./scripts/check_and_fix.sh
+
+# This will:
+# - Check all system components
+# - Create missing NAS directories
+# - Fix permissions and ownership
+# - Validate configuration
+# - Offer to fix any issues found
+```
+
+### 4. Run Pipeline
 ```bash
 # Manual execution
 sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pipeline.py
@@ -712,6 +725,52 @@ sudo ufw status
 - 🔒 **Proper Permissions**: Automatic permission management
 - 🔒 **Secure Configuration**: Environment-based credential storage
 - 🔒 **LXC Isolation**: Container-based security
+
+## 🚀 Latest Updates & Improvements
+
+### Simplified Batch System (v2.1)
+We've completely simplified the batch processing system for better efficiency and easier management:
+
+#### **What Changed:**
+- **❌ Removed**: Numbered batch folders (`batch_1/`, `batch_2/`, etc.)
+- **✅ Added**: Direct file processing in bridge directories
+- **🎯 Result**: Cleaner, more efficient workflow
+
+#### **New Simplified Workflow:**
+```
+1. Download → originals/
+2. Compression → compressed/
+3. File Preparation → bridge/icloud/ & bridge/pixel/ (direct files)
+4. Upload Processing:
+   - iCloud: All files in bridge/icloud/ processed directly
+   - Pixel: All files in bridge/pixel/ synced directly via Syncthing
+5. Sorting → sorted/yyyy/mm/dd/
+```
+
+#### **Benefits:**
+- **Simpler**: No more numbered batch folders to manage
+- **Cleaner**: Direct file processing without unnecessary subfolders
+- **More Efficient**: Syncthing syncs entire folder directly
+- **Easier to Debug**: Clear file paths without batch numbers
+- **Better for Syncthing**: One folder to sync instead of multiple numbered folders
+
+#### **Updated Scripts:**
+- `prepare_bridge_batch.py` → Now `prepare_files_for_type()` (no numbered batches)
+- `sync_to_pixel.py` → Now `sync_files_to_pixel()` (direct folder sync)
+- `upload_icloud.py` → Now `upload_files_to_icloud()` (direct file processing)
+- `run_pipeline.py` → Updated phase names and function calls
+
+#### **NAS Structure Check:**
+- Added `check_nas_structure()` to `check_and_fix.sh`
+- Automatically creates missing NAS directories
+- Fixes ownership and permissions
+- Integrated into comprehensive health check
+
+### Enhanced Installation & Setup:
+- **Comprehensive `install.sh`**: Complete system setup with error handling
+- **Enhanced `check_and_fix.sh`**: Now includes NAS structure validation
+- **Updated `setup_nas_structure.sh`**: Reflects simplified folder structure
+- **Better Error Handling**: More robust installation and troubleshooting
 
 ## 📞 Support & Community
 
