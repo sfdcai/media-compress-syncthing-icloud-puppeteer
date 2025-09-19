@@ -12,6 +12,13 @@ from utils import log_step, ensure_directory_exists
 
 def check_icloudpd_installed():
     """Check if icloudpd is installed and accessible"""
+    # Check virtual environment first
+    venv_icloudpd = "/opt/media-pipeline/venv/bin/icloudpd"
+    if os.path.exists(venv_icloudpd):
+        log_step("download_from_icloud", f"icloudpd found in venv: {venv_icloudpd}", "info")
+        return True
+    
+    # Fallback to system PATH
     try:
         result = subprocess.run(["which", "icloudpd"], capture_output=True, text=True)
         if result.returncode == 0:
@@ -67,9 +74,12 @@ def run_icloud_download():
     password = os.getenv("ICLOUD_PASSWORD")
     nas_mount = os.getenv("NAS_MOUNT", "/opt/media-pipeline/originals")
     
+    # Use virtual environment icloudpd
+    icloudpd_path = "/opt/media-pipeline/venv/bin/icloudpd"
+    
     # Build command with all necessary parameters
     cmd = [
-        "icloudpd",
+        icloudpd_path,
         "--directory", nas_mount,
         "--username", username,
         "--password", password,
