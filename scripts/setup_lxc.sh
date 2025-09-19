@@ -21,6 +21,7 @@ apt install -y \
     rsync \
     parallel \
     pv \
+    systemd \
     curl \
     wget \
     unzip \
@@ -128,11 +129,21 @@ EOF
 # Set up log directory permissions
 chown -R media-pipeline:media-pipeline /opt/media-pipeline/logs
 
+# Copy pipeline files to the target directory
+echo "Copying pipeline files..."
+if [ -d "$(pwd)" ]; then
+    cp -r "$(pwd)"/* /opt/media-pipeline/
+    chown -R media-pipeline:media-pipeline /opt/media-pipeline
+    echo "✓ Pipeline files copied successfully"
+else
+    echo "Warning: Could not determine source directory. Please copy files manually."
+fi
+
 echo "LXC container setup completed successfully!"
 echo ""
 echo "Next steps:"
-echo "1. Copy your media pipeline files to /opt/media-pipeline/"
-echo "2. Update /opt/media-pipeline/config/settings.env with your configuration"
+echo "1. Update /opt/media-pipeline/config/settings.env with your configuration"
+echo "2. Run the health check script: sudo ./scripts/check_and_fix.sh"
 echo "3. Test the setup with: sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pipeline.py"
 echo "4. Start the service with: systemctl start media-pipeline"
 echo ""
