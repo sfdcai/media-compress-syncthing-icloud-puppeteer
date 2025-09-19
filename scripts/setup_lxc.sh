@@ -16,8 +16,6 @@ apt install -y \
     python3 \
     python3-venv \
     python3-pip \
-    nodejs \
-    npm \
     ffmpeg \
     exiftool \
     rsync \
@@ -27,6 +25,11 @@ apt install -y \
     wget \
     unzip \
     git
+
+# Install Node.js 18+ using NodeSource repository
+echo "Installing Node.js 18+..."
+curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+apt install -y nodejs
 
 # Create dedicated user and group
 echo "Creating media-pipeline user and group..."
