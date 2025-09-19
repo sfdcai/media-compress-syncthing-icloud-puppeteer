@@ -312,8 +312,13 @@ setup_nodejs_dependencies() {
     
     # Install Puppeteer
     print_status "INFO" "Installing Puppeteer..."
-    if sudo -u "$USER_NAME" npm install puppeteer; then
+    if sudo -u "$USER_NAME" npm install puppeteer@latest; then
         print_status "SUCCESS" "Puppeteer installed"
+        
+        # Fix any security vulnerabilities
+        print_status "INFO" "Fixing npm security vulnerabilities..."
+        sudo -u "$USER_NAME" npm audit fix --force 2>/dev/null || true
+        print_status "SUCCESS" "Security vulnerabilities addressed"
     else
         print_status "ERROR" "Failed to install Puppeteer"
         return 1

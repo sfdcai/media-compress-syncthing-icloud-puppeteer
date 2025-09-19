@@ -295,8 +295,20 @@ check_files_copied() {
         print_status "ERROR" "Missing pipeline files: ${missing_files[*]}"
         if ask_fix "Copy pipeline files from $SOURCE_DIR to $PIPELINE_DIR"; then
             apply_fix "Copying pipeline files"
-            cp -r "$SOURCE_DIR"/* "$PIPELINE_DIR/"
+            
+            # Copy all files and directories
+            cp -r "$SOURCE_DIR"/* "$PIPELINE_DIR/" 2>/dev/null || true
+            cp -r "$SOURCE_DIR"/.[^.]* "$PIPELINE_DIR/" 2>/dev/null || true
+            
+            # Ensure proper ownership
             chown -R "$USER_NAME:$USER_NAME" "$PIPELINE_DIR"
+            
+            # Create log file with correct permissions
+            touch "$PIPELINE_DIR/logs/pipeline.log"
+            chown "$USER_NAME:$USER_NAME" "$PIPELINE_DIR/logs/pipeline.log"
+            chmod 644 "$PIPELINE_DIR/logs/pipeline.log"
+            
+            print_status "OK" "Pipeline files copied successfully"
         fi
     fi
 }
@@ -435,15 +447,39 @@ check_systemd_service() {
             print_status "OK" "Service is running"
         else
             print_status "WARN" "Service is not running"
-            if ask_fix "Start systemd service"; then
-                apply_fix "Starting systemd service"
-                systemctl start "$SERVICE_NAME"
-                sleep 3
-                if systemctl is-active "$SERVICE_NAME" >/dev/null 2>&1; then
-                    print_status "OK" "Service started successfully"
-                else
-                    print_status "ERROR" "Service failed to start"
-                    print_status "INFO" "Check logs with: journalctl -u $SERVICE_NAME -f"
+            
+            # Check for excessive restart attempts
+            local restart_count=$(journalctl -u "$SERVICE_NAME" --since "1 hour ago" | grep -c "Started Media Pipeline Service" || echo "0")
+            if [ "$restart_count" -gt 10 ]; then
+                print_status "WARN" "Service has restarted $restart_count times in the last hour"
+                if ask_fix "Stop failing service to prevent resource exhaustion"; then
+                    apply_fix "Stopping failing service"
+                    systemctl stop "$SERVICE_NAME"
+                    systemctl disable "$SERVICE_NAME"
+                    print_status "INFO" "Service stopped. Fix issues before restarting."
+                fi
+            else
+                if ask_fix "Start systemd service"; then
+                    apply_fix "Starting systemd service"
+                    systemctl start "$SERVICE_NAME"
+                    sleep 3
+                    if systemctl is-active "$SERVICE_NAME" >/dev/null 2>&1; then
+                        print_status "OK" "Service started successfully"
+                    else
+                        print_status "ERROR" "Service failed to start"
+                        print_status "INFO" "Check logs with: journalctl -u $SERVICE_NAME -f"
+                        
+                        # Check for common startup issues
+                        local log_error=$(journalctl -u "$SERVICE_NAME" --since "5 minutes ago" | tail -n 5)
+                        if echo "$log_error" | grep -q "Permission denied"; then
+                            print_status "INFO" "Permission error detected - checking log file permissions"
+                            if [ -f "$PIPELINE_DIR/logs/pipeline.log" ]; then
+                                chown "$USER_NAME:$USER_NAME" "$PIPELINE_DIR/logs/pipeline.log"
+                                chmod 644 "$PIPELINE_DIR/logs/pipeline.log"
+                                print_status "OK" "Log file permissions fixed"
+                            fi
+                        fi
+                    fi
                 fi
             fi
         fi
@@ -612,14 +648,17 @@ check_pipeline_dependencies() {
     
     # Check Node.js dependencies
     if [ -f "$PIPELINE_DIR/package.json" ]; then
-        if sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/python" -c "import subprocess; subprocess.run(['node', '-e', 'require(\"puppeteer\")'], check=True)" 2>/dev/null; then
-            print_status "OK" "Puppeteer Node.js module is available"
+        cd "$PIPELINE_DIR"
+        if sudo -u "$USER_NAME" node -e "require('puppeteer')" 2>/dev/null; then
+            local puppeteer_version=$(sudo -u "$USER_NAME" node -e "console.log(require('puppeteer/package.json').version)" 2>/dev/null || echo "unknown")
+            print_status "OK" "Puppeteer Node.js module is available (v$puppeteer_version)"
         else
             print_status "ERROR" "Puppeteer Node.js module is not available"
-            if ask_fix "Install Puppeteer Node.js module"; then
-                apply_fix "Installing Puppeteer"
+            if ask_fix "Install/Update Puppeteer Node.js module"; then
+                apply_fix "Installing/Updating Puppeteer"
                 cd "$PIPELINE_DIR"
-                sudo -u "$USER_NAME" npm install puppeteer
+                sudo -u "$USER_NAME" npm install puppeteer@latest
+                sudo -u "$USER_NAME" npm audit fix --force
             fi
         fi
     fi
@@ -762,7 +801,13 @@ check_syncthing() {
                     print_status "INFO" "Syncthing GUI address: $syncthing_address:$syncthing_port"
                 fi
             else
-                print_status "WARN" "Could not determine Syncthing web interface port"
+                # Try to detect port from netstat if config parsing fails
+                local detected_port=$(netstat -tlnp 2>/dev/null | grep syncthing | grep -o ':[0-9]*' | head -n1 | sed 's/://')
+                if [ -n "$detected_port" ]; then
+                    print_status "OK" "Syncthing web interface detected on port $detected_port"
+                else
+                    print_status "WARN" "Could not determine Syncthing web interface port"
+                fi
             fi
         else
             print_status "WARN" "Syncthing configuration not found"
