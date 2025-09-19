@@ -35,11 +35,16 @@ def validate_config():
     """Validate required configuration"""
     username = os.getenv("ICLOUD_USERNAME")
     password = os.getenv("ICLOUD_PASSWORD")
-    nas_mount = os.getenv("NAS_MOUNT", "/opt/media-pipeline/originals")
+    
+    # Use ORIGINALS_DIR if set, otherwise fall back to NAS_MOUNT/originals
+    originals_dir = os.getenv("ORIGINALS_DIR")
+    if not originals_dir:
+        nas_mount = os.getenv("NAS_MOUNT", "/opt/media-pipeline")
+        originals_dir = os.path.join(nas_mount, "originals")
     
     print(f"  Username: {username}")
     print(f"  Password: {'SET' if password else 'NOT SET'}")
-    print(f"  Target directory: {nas_mount}")
+    print(f"  Target directory: {originals_dir}")
     
     if not username:
         print("  ERROR: ICLOUD_USERNAME not set in environment")
@@ -52,27 +57,36 @@ def validate_config():
         return False
     
     log_step("download_from_icloud", f"Using username: {username}", "info")
-    log_step("download_from_icloud", f"Target directory: {nas_mount}", "info")
+    log_step("download_from_icloud", f"Target directory: {originals_dir}", "info")
     
     return True
 
 def setup_download_directory():
     """Ensure download directory exists"""
-    nas_mount = os.getenv("NAS_MOUNT", "/opt/media-pipeline/originals")
+    # Use ORIGINALS_DIR if set, otherwise fall back to NAS_MOUNT/originals
+    originals_dir = os.getenv("ORIGINALS_DIR")
+    if not originals_dir:
+        nas_mount = os.getenv("NAS_MOUNT", "/opt/media-pipeline")
+        originals_dir = os.path.join(nas_mount, "originals")
     
     try:
-        ensure_directory_exists(nas_mount)
-        log_step("download_from_icloud", f"Download directory ready: {nas_mount}", "success")
+        ensure_directory_exists(originals_dir)
+        log_step("download_from_icloud", f"Download directory ready: {originals_dir}", "success")
         return True
     except Exception as e:
-        log_step("download_from_icloud", f"Failed to setup directory {nas_mount}: {e}", "error")
+        log_step("download_from_icloud", f"Failed to setup directory {originals_dir}: {e}", "error")
         return False
 
 def run_icloud_download():
     """Run the actual iCloud download with proper error handling"""
     username = os.getenv("ICLOUD_USERNAME")
     password = os.getenv("ICLOUD_PASSWORD")
-    nas_mount = os.getenv("NAS_MOUNT", "/opt/media-pipeline/originals")
+    
+    # Use ORIGINALS_DIR if set, otherwise fall back to NAS_MOUNT/originals
+    originals_dir = os.getenv("ORIGINALS_DIR")
+    if not originals_dir:
+        nas_mount = os.getenv("NAS_MOUNT", "/opt/media-pipeline")
+        originals_dir = os.path.join(nas_mount, "originals")
     
     # Use virtual environment icloudpd
     icloudpd_path = "/opt/media-pipeline/venv/bin/icloudpd"
@@ -80,7 +94,7 @@ def run_icloud_download():
     # Build command with all necessary parameters
     cmd = [
         icloudpd_path,
-        "--directory", nas_mount,
+        "--directory", originals_dir,
         "--username", username,
         "--password", password,
         "--size", "original",  # Download original quality
@@ -125,22 +139,26 @@ def run_icloud_download():
 
 def check_download_results():
     """Check if any files were downloaded"""
-    nas_mount = os.getenv("NAS_MOUNT", "/opt/media-pipeline/originals")
+    # Use ORIGINALS_DIR if set, otherwise fall back to NAS_MOUNT/originals
+    originals_dir = os.getenv("ORIGINALS_DIR")
+    if not originals_dir:
+        nas_mount = os.getenv("NAS_MOUNT", "/opt/media-pipeline")
+        originals_dir = os.path.join(nas_mount, "originals")
     
     try:
-        if not os.path.exists(nas_mount):
-            log_step("download_from_icloud", f"Download directory {nas_mount} does not exist", "error")
+        if not os.path.exists(originals_dir):
+            log_step("download_from_icloud", f"Download directory {originals_dir} does not exist", "error")
             return False
         
         # Count files in directory
         files = []
-        for root, dirs, filenames in os.walk(nas_mount):
+        for root, dirs, filenames in os.walk(originals_dir):
             for filename in filenames:
                 if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.heic', '.heif', '.mp4', '.mov', '.avi')):
                     files.append(os.path.join(root, filename))
         
         if files:
-            log_step("download_from_icloud", f"Downloaded {len(files)} media files", "success")
+            log_step("download_from_icloud", f"Downloaded {len(files)} media files to {originals_dir}", "success")
             return True
         else:
             log_step("download_from_icloud", "No media files found after download", "warning")
