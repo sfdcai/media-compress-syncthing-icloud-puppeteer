@@ -71,7 +71,13 @@ backup_user_data() {
 clean_git_repository() {
     print_status "INFO" "Cleaning Git repository..."
     
-    # Remove untracked files and directories
+    # Backup virtual environment if it exists
+    if [ -d "/opt/media-pipeline/venv" ]; then
+        print_status "INFO" "Backing up virtual environment..."
+        cp -r /opt/media-pipeline/venv /tmp/venv_backup
+    fi
+    
+    # Remove untracked files and directories (but preserve venv)
     git clean -fd
     
     # Reset any local changes
@@ -79,6 +85,16 @@ clean_git_repository() {
     
     # Stash any remaining changes
     git stash push -m "Auto-stash before cleanup" 2>/dev/null || true
+    
+    # Restore virtual environment if it was backed up
+    if [ -d "/tmp/venv_backup" ]; then
+        print_status "INFO" "Restoring virtual environment..."
+        mv /tmp/venv_backup /opt/media-pipeline/venv
+        chown -R media-pipeline:media-pipeline /opt/media-pipeline/venv
+    else
+        # If no backup exists, recreate virtual environment
+        print_status "INFO" "No virtual environment backup found, will recreate after setup"
+    fi
     
     print_status "SUCCESS" "Git repository cleaned"
 }
@@ -146,6 +162,36 @@ update_from_git() {
     print_status "SUCCESS" "Git update completed"
 }
 
+recreate_virtual_environment() {
+    print_status "INFO" "Recreating virtual environment..."
+    
+    # Check if virtual environment exists
+    if [ ! -d "/opt/media-pipeline/venv" ]; then
+        print_status "INFO" "Virtual environment missing, creating new one..."
+        
+        # Install python3-venv if missing
+        if ! dpkg -l | grep -q "python3-venv"; then
+            print_status "INFO" "Installing python3-venv..."
+            apt install -y python3-venv
+        fi
+        
+        # Create virtual environment
+        sudo -u media-pipeline python3 -m venv /opt/media-pipeline/venv
+        
+        # Upgrade pip
+        sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install --upgrade pip
+        
+        # Install requirements
+        if [ -f "/opt/media-pipeline/requirements.txt" ]; then
+            sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install -r /opt/media-pipeline/requirements.txt
+        fi
+        
+        print_status "SUCCESS" "Virtual environment recreated"
+    else
+        print_status "SUCCESS" "Virtual environment already exists"
+    fi
+}
+
 show_summary() {
     echo
     echo -e "${GREEN}============================================${NC}"
@@ -195,6 +241,7 @@ main() {
     update_from_git
     setup_configuration
     restore_user_data
+    recreate_virtual_environment
     show_summary
 }
 
