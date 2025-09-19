@@ -65,6 +65,7 @@ sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install --upgrade pip
 
 # Install Python dependencies
 echo "Installing Python dependencies..."
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install --upgrade pip
 sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install \
     icloudpd \
     pillow \
@@ -72,6 +73,15 @@ sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install \
     python-dotenv \
     supabase \
     psutil
+
+# Verify icloudpd installation
+echo "Verifying icloudpd installation..."
+if sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd --version >/dev/null 2>&1; then
+    echo "✓ icloudpd installed successfully"
+else
+    echo "⚠ icloudpd installation verification failed"
+    echo "  This may be normal - icloudpd will be verified during pipeline execution"
+fi
 
 # Setup Node.js dependencies
 echo "Setting up Node.js dependencies..."

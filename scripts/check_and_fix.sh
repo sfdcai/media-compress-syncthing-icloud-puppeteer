@@ -538,6 +538,109 @@ check_config() {
     fi
 }
 
+# Check pipeline dependencies
+check_pipeline_dependencies() {
+    print_status "INFO" "Checking pipeline dependencies..."
+    
+    # Check icloudpd installation
+    if command -v icloudpd >/dev/null 2>&1; then
+        local icloudpd_version=$(icloudpd --version 2>/dev/null | head -n1 || echo "unknown")
+        print_status "OK" "icloudpd is installed: $icloudpd_version"
+    else
+        print_status "ERROR" "icloudpd is not installed"
+        if ask_fix "Install icloudpd"; then
+            apply_fix "Installing icloudpd"
+            sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install icloudpd
+        fi
+    fi
+    
+    # Check if icloudpd can be imported in Python
+    if sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/python" -c "import icloudpd" 2>/dev/null; then
+        print_status "OK" "icloudpd Python module is available"
+    else
+        print_status "ERROR" "icloudpd Python module is not available"
+        if ask_fix "Install icloudpd Python module"; then
+            apply_fix "Installing icloudpd Python module"
+            sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install icloudpd
+        fi
+    fi
+    
+    # Check other critical pipeline dependencies
+    local critical_modules=("PIL" "ffmpeg" "dotenv" "supabase" "psutil")
+    for module in "${critical_modules[@]}"; do
+        if sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/python" -c "import $module" 2>/dev/null; then
+            print_status "OK" "Python module $module is available"
+        else
+            print_status "ERROR" "Python module $module is not available"
+            if ask_fix "Install missing Python module $module"; then
+                apply_fix "Installing Python module $module"
+                case $module in
+                    "PIL")
+                        sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install pillow
+                        ;;
+                    "ffmpeg")
+                        sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install ffmpeg-python
+                        ;;
+                    "dotenv")
+                        sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install python-dotenv
+                        ;;
+                    "supabase")
+                        sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install supabase
+                        ;;
+                    "psutil")
+                        sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install psutil
+                        ;;
+                esac
+            fi
+        fi
+    done
+    
+    # Check Node.js dependencies
+    if [ -f "$PIPELINE_DIR/package.json" ]; then
+        if sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/python" -c "import subprocess; subprocess.run(['node', '-e', 'require(\"puppeteer\")'], check=True)" 2>/dev/null; then
+            print_status "OK" "Puppeteer Node.js module is available"
+        else
+            print_status "ERROR" "Puppeteer Node.js module is not available"
+            if ask_fix "Install Puppeteer Node.js module"; then
+                apply_fix "Installing Puppeteer"
+                cd "$PIPELINE_DIR"
+                sudo -u "$USER_NAME" npm install puppeteer
+            fi
+        fi
+    fi
+}
+
+# Check iCloud configuration
+check_icloud_config() {
+    print_status "INFO" "Checking iCloud configuration..."
+    
+    if [ -f "$PIPELINE_DIR/config/settings.env" ]; then
+        # Check if iCloud credentials are configured
+        if grep -q "ICLOUD_USERNAME=" "$PIPELINE_DIR/config/settings.env" && grep -q "ICLOUD_PASSWORD=" "$PIPELINE_DIR/config/settings.env"; then
+            local username=$(grep "ICLOUD_USERNAME=" "$PIPELINE_DIR/config/settings.env" | cut -d'=' -f2)
+            if [ -n "$username" ] && [ "$username" != "your@email.com" ]; then
+                print_status "OK" "iCloud username is configured"
+            else
+                print_status "WARN" "iCloud username is not properly configured"
+                print_status "INFO" "Please edit $PIPELINE_DIR/config/settings.env and set ICLOUD_USERNAME"
+            fi
+            
+            local password=$(grep "ICLOUD_PASSWORD=" "$PIPELINE_DIR/config/settings.env" | cut -d'=' -f2)
+            if [ -n "$password" ] && [ "$password" != "your-app-password" ]; then
+                print_status "OK" "iCloud password is configured"
+            else
+                print_status "WARN" "iCloud password is not properly configured"
+                print_status "INFO" "Please edit $PIPELINE_DIR/config/settings.env and set ICLOUD_PASSWORD"
+            fi
+        else
+            print_status "ERROR" "iCloud credentials are not configured"
+            print_status "INFO" "Please edit $PIPELINE_DIR/config/settings.env and add ICLOUD_USERNAME and ICLOUD_PASSWORD"
+        fi
+    else
+        print_status "ERROR" "Configuration file not found"
+    fi
+}
+
 # Test pipeline execution
 test_pipeline() {
     print_status "INFO" "Testing pipeline execution..."
@@ -551,6 +654,20 @@ test_pipeline() {
         else
             print_status "ERROR" "Pipeline script has syntax errors"
         fi
+        
+        # Test individual script imports
+        local scripts=("download_from_icloud.py" "compress_media.py" "upload_icloud.py" "utils.py")
+        for script in "${scripts[@]}"; do
+            if [ -f "$PIPELINE_DIR/scripts/$script" ]; then
+                if sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/python" -m py_compile "$PIPELINE_DIR/scripts/$script" 2>/dev/null; then
+                    print_status "OK" "Script $script syntax is valid"
+                else
+                    print_status "ERROR" "Script $script has syntax errors"
+                fi
+            else
+                print_status "ERROR" "Script $script is missing"
+            fi
+        done
     else
         print_status "ERROR" "Pipeline script does not exist"
     fi
@@ -834,6 +951,8 @@ main() {
     check_log_rotation
     check_cron_job
     check_config
+    check_pipeline_dependencies
+    check_icloud_config
     test_pipeline
     check_syncthing
     check_ssh_service

@@ -214,7 +214,40 @@ sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip list
 sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install -r /opt/media-pipeline/requirements.txt
 ```
 
-#### 5. **Mount Point Issues**
+#### 5. **iCloud Authentication Issues**
+**Symptoms**: EOFError, authentication failures, password prompts
+```bash
+# Check icloudpd installation
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd --version
+
+# Check iCloud credentials in config
+grep -E "ICLOUD_USERNAME|ICLOUD_PASSWORD" /opt/media-pipeline/config/settings.env
+
+# Test icloudpd manually (will prompt for password)
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd --username your@email.com --password your-app-password --directory /tmp/test --dry-run
+
+# Fix: Ensure credentials are properly set
+nano /opt/media-pipeline/config/settings.env
+# Set ICLOUD_USERNAME=your@email.com
+# Set ICLOUD_PASSWORD=your-app-specific-password
+```
+
+#### 6. **Pipeline Dependency Issues**
+**Symptoms**: Import errors, missing modules, command not found
+```bash
+# Check all pipeline dependencies
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python -c "import icloudpd, PIL, ffmpeg, dotenv, supabase, psutil; print('All modules available')"
+
+# Reinstall all dependencies
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install --upgrade pip
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install -r /opt/media-pipeline/requirements.txt
+
+# Check Node.js dependencies
+cd /opt/media-pipeline
+sudo -u media-pipeline npm list puppeteer
+```
+
+#### 7. **Mount Point Issues**
 **Symptoms**: NAS/Syncthing folders not accessible
 ```bash
 # Check mount status
@@ -272,6 +305,83 @@ nano /opt/media-pipeline/config/settings.env
 # Add debug settings
 LOG_LEVEL=DEBUG
 VERBOSE_LOGGING=true
+```
+
+### ☁️ iCloud Setup & Troubleshooting
+
+#### iCloud App-Specific Password Setup
+1. **Enable Two-Factor Authentication** on your Apple ID
+2. **Generate App-Specific Password**:
+   - Go to [appleid.apple.com](https://appleid.apple.com)
+   - Sign in with your Apple ID
+   - Go to "Security" section
+   - Click "Generate Password" under "App-Specific Passwords"
+   - Label it "Media Pipeline" or similar
+   - Copy the generated password
+
+#### Configure iCloud Credentials
+```bash
+# Edit configuration file
+nano /opt/media-pipeline/config/settings.env
+
+# Set your credentials
+ICLOUD_USERNAME=your@email.com
+ICLOUD_PASSWORD=your-app-specific-password
+```
+
+#### Test iCloud Connection
+```bash
+# Test icloudpd manually
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd \
+    --username your@email.com \
+    --password your-app-specific-password \
+    --directory /tmp/test \
+    --dry-run
+
+# If successful, you should see authentication success message
+```
+
+#### Common iCloud Issues
+
+**Issue**: `EOFError` or password prompts in service
+**Solution**: Service can't prompt for password interactively
+```bash
+# Ensure credentials are in config file, not prompted
+grep -E "ICLOUD_USERNAME|ICLOUD_PASSWORD" /opt/media-pipeline/config/settings.env
+
+# Test with explicit credentials
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd \
+    --username $(grep ICLOUD_USERNAME /opt/media-pipeline/config/settings.env | cut -d'=' -f2) \
+    --password $(grep ICLOUD_PASSWORD /opt/media-pipeline/config/settings.env | cut -d'=' -f2) \
+    --directory /tmp/test \
+    --dry-run
+```
+
+**Issue**: Authentication failed
+**Solution**: Check credentials and 2FA setup
+```bash
+# Verify credentials format
+cat /opt/media-pipeline/config/settings.env | grep ICLOUD
+
+# Test with verbose output
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd \
+    --username your@email.com \
+    --password your-app-specific-password \
+    --directory /tmp/test \
+    --dry-run \
+    --verbose
+```
+
+**Issue**: Rate limiting or quota exceeded
+**Solution**: Wait and retry, check iCloud storage
+```bash
+# Check iCloud storage usage
+# Visit icloud.com and check storage
+
+# Add delays between requests
+# Edit config to add:
+ICLOUD_DOWNLOAD_DELAY=5
+ICLOUD_BATCH_SIZE=100
 ```
 
 #### Manual Pipeline Testing
