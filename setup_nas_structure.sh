@@ -11,9 +11,19 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
+# Configuration - Read from settings.env
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SETTINGS_FILE="$SCRIPT_DIR/config/settings.env"
+
+# Default values
 NAS_BASE="/mnt/wd_all_pictures/sync"
 USER_NAME="media-pipeline"
+
+# Read from settings.env if available
+if [ -f "$SETTINGS_FILE" ]; then
+    NAS_BASE=$(grep "^NAS_MOUNT=" "$SETTINGS_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "$NAS_BASE")
+    USER_NAME=$(grep "^LXC_USER=" "$SETTINGS_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "$USER_NAME")
+fi
 
 print_status() {
     local status=$1
@@ -39,6 +49,11 @@ print_header() {
     echo -e "${BLUE}============================================${NC}"
     echo -e "${BLUE}  NAS Directory Structure Setup${NC}"
     echo -e "${BLUE}============================================${NC}"
+    echo
+    echo -e "${BLUE}Configuration:${NC}"
+    echo "  NAS Base: $NAS_BASE"
+    echo "  User: $USER_NAME"
+    echo "  Settings File: $SETTINGS_FILE"
     echo
 }
 

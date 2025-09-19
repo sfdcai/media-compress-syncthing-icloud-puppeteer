@@ -15,8 +15,8 @@ from utils import (
 )
 
 # Configuration
-MAX_BATCH_SIZE_GB = int(os.getenv("MAX_BATCH_SIZE_GB", 5))
-MAX_BATCH_FILES = int(os.getenv("MAX_BATCH_FILES", 500))
+MAX_PROCESSING_SIZE_GB = int(os.getenv("MAX_PROCESSING_SIZE_GB", 5))
+MAX_PROCESSING_FILES = int(os.getenv("MAX_PROCESSING_FILES", 500))
 
 def get_media_files(directory, extensions=None):
     """Get all media files from directory"""

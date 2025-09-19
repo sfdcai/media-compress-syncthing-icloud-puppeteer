@@ -29,16 +29,79 @@ A comprehensive media compression and syncing pipeline for iCloud and Google Pho
 start with 
 bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syncthing-icloud-puppeteer/main/setup-git-clone.sh)"
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. LXC Container Setup
+### **Complete Installation Process**
+
+#### **Step 1: Initial Setup**
 ```bash
-# Run the LXC setup script
-chmod +x scripts/setup_lxc.sh
-sudo ./scripts/setup_lxc.sh
+# Clone the repository
+git clone https://github.com/sfdcai/media-compress-syncthing-icloud-puppeteer.git
+cd media-compress-syncthing-icloud-puppeteer
+
+# Make scripts executable
+chmod +x scripts/setup_lxc.sh install.sh manage_config.sh cleanup_and_setup.sh
+
+# Run the comprehensive installation
+sudo ./install.sh
 ```
 
-### 2. Configuration
+#### **Step 2: Configuration Management**
+```bash
+# Setup configuration management (moves config outside project)
+./manage_config.sh setup
+
+# Edit your configuration
+./manage_config.sh edit
+```
+
+#### **Step 3: Health Check & Setup**
+```bash
+# Run comprehensive health check and auto-fix
+sudo ./scripts/check_and_fix.sh
+
+# This will:
+# - Check all system packages
+# - Verify Node.js and Python environments
+# - Create NAS directory structure
+# - Fix permissions and services
+# - Configure Syncthing
+# - Test pipeline components
+```
+
+#### **Step 4: Start Services**
+```bash
+# Start the media pipeline service
+systemctl start media-pipeline
+
+# Start Syncthing (if not already running)
+systemctl start syncthing@root
+
+# Check service status
+systemctl status media-pipeline
+systemctl status syncthing@root
+```
+
+### **Alternative: Manual Step-by-Step Setup**
+
+If you prefer manual control:
+
+```bash
+# 1. Setup LXC container
+sudo ./scripts/setup_lxc.sh
+
+# 2. Setup NAS directory structure
+sudo ./setup_nas_structure.sh
+
+# 3. Run health check
+sudo ./scripts/check_and_fix.sh
+
+# 4. Configure and start services
+./manage_config.sh edit
+systemctl start media-pipeline
+```
+
+### **Configuration**
 **IMPORTANT**: All directory paths are configured via environment variables in `config/settings.env`. No hardcoded paths are used in the scripts.
 
 Edit `config/settings.env` with your credentials and settings:
@@ -66,28 +129,6 @@ COMPRESSED_DIR=/mnt/wd_all_pictures/sync/compressed
 BRIDGE_ICLOUD_DIR=/mnt/wd_all_pictures/sync/bridge/icloud
 BRIDGE_PIXEL_DIR=/mnt/wd_all_pictures/sync/bridge/pixel
 PIXEL_SYNC_FOLDER=/mnt/syncthing/pixel
-```
-
-### 3. Health Check & Setup
-```bash
-# Run comprehensive health check (includes NAS structure setup)
-sudo ./scripts/check_and_fix.sh
-
-# This will:
-# - Check all system components
-# - Create missing NAS directories
-# - Fix permissions and ownership
-# - Validate configuration
-# - Offer to fix any issues found
-```
-
-### 4. Run Pipeline
-```bash
-# Manual execution
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pipeline.py
-
-# Or start the systemd service
-sudo systemctl start media-pipeline
 ```
 
 ## Configuration Options
@@ -840,6 +881,168 @@ Your configuration is stored outside the project directory:
 - ✅ **Easy Updates**: Pull latest changes without losing your settings
 - ✅ **Backup Safe**: Configuration is preserved during updates
 - ✅ **Ubuntu/LXC Optimized**: Designed specifically for Ubuntu LXC containers
+
+## 🔧 Troubleshooting & Debugging
+
+### **Quick Diagnostics**
+```bash
+# Run comprehensive health check
+sudo ./scripts/check_and_fix.sh
+
+# Check service status
+systemctl status media-pipeline
+systemctl status syncthing@root
+
+# View recent logs
+journalctl -u media-pipeline -f --lines=50
+journalctl -u syncthing@root -f --lines=50
+
+# Check configuration
+./manage_config.sh status
+```
+
+### **Common Issues & Solutions**
+
+#### **1. Permission Errors**
+```bash
+# Fix permissions for pipeline directory
+sudo ./scripts/check_and_fix.sh --fix-permissions
+
+# Or manually fix
+sudo chown -R media-pipeline:media-pipeline /opt/media-pipeline
+sudo chmod -R 755 /opt/media-pipeline
+```
+
+#### **2. Service Not Starting**
+```bash
+# Check service logs
+journalctl -u media-pipeline -f
+
+# Common causes:
+# - Missing Python packages
+# - Permission issues
+# - Configuration errors
+# - Missing directories
+
+# Fix with health check
+sudo ./scripts/check_and_fix.sh
+```
+
+#### **3. Syncthing Issues**
+```bash
+# Check Syncthing status
+systemctl status syncthing@root
+
+# Access web interface
+# http://YOUR_IP:8384
+
+# Fix Syncthing configuration
+sudo ./scripts/check_and_fix.sh
+```
+
+#### **4. Configuration Problems**
+```bash
+# Verify configuration file
+./manage_config.sh status
+
+# Edit configuration
+./manage_config.sh edit
+
+# Check environment variables
+grep -v "^#" config/settings.env
+```
+
+#### **5. Node.js/Puppeteer Issues**
+```bash
+# Check Node.js version
+node --version
+
+# Reinstall Puppeteer
+cd /opt/media-pipeline
+npm install puppeteer@latest
+npm audit fix --force
+```
+
+#### **6. Python Environment Issues**
+```bash
+# Check virtual environment
+ls -la /opt/media-pipeline/venv/
+
+# Recreate virtual environment
+sudo -u media-pipeline python3 -m venv /opt/media-pipeline/venv
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install -r requirements.txt
+```
+
+#### **7. iCloud Authentication Issues**
+```bash
+# Check iCloud credentials
+grep "ICLOUD_" config/settings.env
+
+# Test icloudpd manually
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd --help
+
+# Common issues:
+# - Wrong app-specific password
+# - 2FA not properly configured
+# - Account locked
+```
+
+#### **8. Directory Structure Issues**
+```bash
+# Check NAS mount
+mount | grep wd_all_pictures
+
+# Verify directory structure
+ls -la /mnt/wd_all_pictures/sync/
+
+# Recreate directories
+sudo ./setup_nas_structure.sh
+```
+
+### **Advanced Debugging**
+
+#### **Manual Pipeline Testing**
+```bash
+# Test individual components
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/download_from_icloud.py
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/compress_media.py
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/prepare_bridge_batch.py
+```
+
+#### **Log Analysis**
+```bash
+# Pipeline logs
+tail -f /opt/media-pipeline/logs/pipeline.log
+
+# System logs
+journalctl -u media-pipeline --since "1 hour ago"
+
+# Syncthing logs
+journalctl -u syncthing@root --since "1 hour ago"
+```
+
+#### **Network Diagnostics**
+```bash
+# Check network connectivity
+ping google.com
+ping icloud.com
+
+# Check firewall
+ufw status
+netstat -tlnp | grep :8384
+```
+
+### **Emergency Recovery**
+```bash
+# Complete system reset
+sudo ./cleanup_and_setup.sh
+
+# Reinstall from scratch
+sudo ./install.sh
+
+# Fix specific issues
+sudo ./scripts/check_and_fix.sh --fix-permissions
+```
 
 ## 📞 Support & Community
 
