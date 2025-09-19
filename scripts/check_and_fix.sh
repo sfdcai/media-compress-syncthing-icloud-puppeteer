@@ -355,6 +355,57 @@ check_systemd_service() {
     if systemctl list-unit-files | grep -q "$SERVICE_NAME.service"; then
         print_status "OK" "Systemd service file exists"
         
+        # Check service status and restart count
+        local restart_count=$(systemctl show "$SERVICE_NAME" --property=ExecMainStatus --value 2>/dev/null || echo "0")
+        local service_status=$(systemctl is-active "$SERVICE_NAME" 2>/dev/null || echo "inactive")
+        
+        # Check for excessive restarts (indicates a problem)
+        if systemctl show "$SERVICE_NAME" --property=RestartCount --value 2>/dev/null | grep -q "[0-9]"; then
+            local restart_count=$(systemctl show "$SERVICE_NAME" --property=RestartCount --value 2>/dev/null)
+            if [ "$restart_count" -gt 10 ]; then
+                print_status "ERROR" "Service has restarted $restart_count times (indicates a problem)"
+                if ask_fix "Stop the failing service to prevent continuous restarts"; then
+                    apply_fix "Stopping failing service"
+                    systemctl stop "$SERVICE_NAME"
+                    systemctl disable "$SERVICE_NAME"
+                    print_status "INFO" "Service stopped. Check logs and fix issues before restarting."
+                fi
+            fi
+        fi
+        
+        # Check log file permissions
+        local log_file="$PIPELINE_DIR/logs/pipeline.log"
+        if [ -f "$log_file" ]; then
+            local log_owner=$(stat -c '%U:%G' "$log_file" 2>/dev/null)
+            if [ "$log_owner" != "$USER_NAME:$USER_NAME" ]; then
+                print_status "WARN" "Log file ownership is $log_owner (should be $USER_NAME:$USER_NAME)"
+                if ask_fix "Fix log file permissions"; then
+                    apply_fix "Fixing log file permissions"
+                    chown "$USER_NAME:$USER_NAME" "$log_file"
+                    chmod 644 "$log_file"
+                fi
+            fi
+        else
+            # Create log file with correct permissions
+            print_status "INFO" "Creating log file with correct permissions"
+            touch "$log_file"
+            chown "$USER_NAME:$USER_NAME" "$log_file"
+            chmod 644 "$log_file"
+        fi
+        
+        # Check logs directory permissions
+        if [ -d "$PIPELINE_DIR/logs" ]; then
+            local logs_owner=$(stat -c '%U:%G' "$PIPELINE_DIR/logs" 2>/dev/null)
+            if [ "$logs_owner" != "$USER_NAME:$USER_NAME" ]; then
+                print_status "WARN" "Logs directory ownership is $logs_owner (should be $USER_NAME:$USER_NAME)"
+                if ask_fix "Fix logs directory permissions"; then
+                    apply_fix "Fixing logs directory permissions"
+                    chown -R "$USER_NAME:$USER_NAME" "$PIPELINE_DIR/logs"
+                    chmod -R 755 "$PIPELINE_DIR/logs"
+                fi
+            fi
+        fi
+        
         if systemctl is-enabled "$SERVICE_NAME" >/dev/null 2>&1; then
             print_status "OK" "Service is enabled"
         else
@@ -372,6 +423,13 @@ check_systemd_service() {
             if ask_fix "Start systemd service"; then
                 apply_fix "Starting systemd service"
                 systemctl start "$SERVICE_NAME"
+                sleep 3
+                if systemctl is-active "$SERVICE_NAME" >/dev/null 2>&1; then
+                    print_status "OK" "Service started successfully"
+                else
+                    print_status "ERROR" "Service failed to start"
+                    print_status "INFO" "Check logs with: journalctl -u $SERVICE_NAME -f"
+                fi
             fi
         fi
     else
