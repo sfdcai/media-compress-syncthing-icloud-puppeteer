@@ -319,11 +319,10 @@ The `test_supabase.py` script performs comprehensive testing of your Supabase se
 5. **Connection Pooling Test** - Tests multiple rapid connections
 
 #### **Required Tables:**
-- `media_files` - Stores file metadata and hashes
-- `duplicates` - Tracks duplicate file relationships
-- `upload_logs` - Logs upload attempts and status
-- `batch_logs` - Tracks batch processing operations
-- `compression_logs` - Records compression operations
+- `media_files` - Stores file metadata, hashes, and processing status
+- `batches` - Tracks batch processing operations (icloud/pixel uploads)
+- `duplicate_files` - Tracks duplicate file relationships
+- `pipeline_logs` - Records pipeline step execution and status
 
 #### **Running the test:**
 ```bash

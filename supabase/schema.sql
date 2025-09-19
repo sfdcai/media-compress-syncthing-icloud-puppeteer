@@ -1,5 +1,16 @@
 -- Supabase Schema for Media Pipeline
 
+-- Enhanced batches table (must be created first due to foreign key reference)
+CREATE TABLE IF NOT EXISTS batches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    batch_type TEXT CHECK (batch_type IN ('icloud','pixel')),
+    status TEXT CHECK (status IN ('created','uploading','uploaded','verified','error')),
+    total_size_gb DECIMAL(10,2),
+    file_count INTEGER,
+    created_at TIMESTAMP DEFAULT NOW(),
+    completed_at TIMESTAMP
+);
+
 -- Enhanced media_files table
 CREATE TABLE IF NOT EXISTS media_files (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -15,17 +26,6 @@ CREATE TABLE IF NOT EXISTS media_files (
     created_at TIMESTAMP DEFAULT NOW(),
     processed_at TIMESTAMP,
     updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- Enhanced batches table
-CREATE TABLE IF NOT EXISTS batches (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    batch_type TEXT CHECK (batch_type IN ('icloud','pixel')),
-    status TEXT CHECK (status IN ('created','uploading','uploaded','verified','error')),
-    total_size_gb DECIMAL(10,2),
-    file_count INTEGER,
-    created_at TIMESTAMP DEFAULT NOW(),
-    completed_at TIMESTAMP
 );
 
 -- Duplicate files tracking
@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS pipeline_logs (
     status TEXT CHECK (status IN ('info','success','error','warning')),
     created_at TIMESTAMP DEFAULT NOW()
 );
+
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_media_files_hash ON media_files(file_hash);

@@ -96,13 +96,12 @@ def test_database_tables(supabase):
     """Test if required database tables exist"""
     print_status("INFO", "Testing database table structure...")
     
-    # Expected tables and their required columns
+    # Expected tables and their required columns (based on actual project usage)
     expected_tables = {
-        'media_files': ['id', 'filename', 'file_path', 'file_size', 'file_hash', 'created_at'],
-        'duplicates': ['id', 'original_file_id', 'duplicate_file_id', 'created_at'],
-        'upload_logs': ['id', 'file_id', 'upload_type', 'status', 'created_at'],
-        'batch_logs': ['id', 'batch_type', 'file_count', 'status', 'created_at'],
-        'compression_logs': ['id', 'original_file_id', 'compressed_file_id', 'compression_ratio', 'created_at']
+        'media_files': ['id', 'filename', 'file_path', 'file_size', 'file_hash', 'status', 'batch_id', 'created_at'],
+        'batches': ['id', 'batch_type', 'status', 'file_count', 'total_size_gb', 'created_at'],
+        'duplicate_files': ['id', 'original_file_id', 'duplicate_file_id', 'hash', 'created_at'],
+        'pipeline_logs': ['id', 'step', 'message', 'status', 'created_at']
     }
     
     missing_tables = []

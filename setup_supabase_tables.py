@@ -195,10 +195,8 @@ def test_tables(supabase):
     
     tables_to_test = [
         'media_files',
-        'duplicates', 
-        'upload_logs',
-        'batch_logs',
-        'compression_logs',
+        'batches',
+        'duplicate_files',
         'pipeline_logs'
     ]
     
