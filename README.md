@@ -41,6 +41,11 @@ A comprehensive media compression and syncing pipeline for iCloud and Google Pho
 - ✅ Comprehensive error handling and recovery
 - ✅ Real-time sync status monitoring
 - ✅ Configurable batch processing
+- ✅ **NEW**: Fixed Puppeteer API compatibility (waitForTimeout → setTimeout)
+- ✅ **NEW**: External selector configuration for iCloud Photos
+- ✅ **NEW**: Manual selector testing script for easy updates
+- ✅ **NEW**: Chrome dependencies included in installation
+- ✅ **NEW**: Improved error handling and troubleshooting
 - ✅ Database backfill utilities
 
 ### **Quick Start Command**

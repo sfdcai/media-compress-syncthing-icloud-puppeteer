@@ -21,6 +21,16 @@ import os from 'os';
 
 const COOKIE_FILE = path.resolve('./cookies.json');
 const PROCESSED_DB = path.resolve('./uploaded_manifest.json'); // local ledger
+const SELECTORS_FILE = path.resolve('./scripts/icloud_selectors.json');
+
+// Load selectors from external file
+let selectors;
+try {
+  selectors = JSON.parse(fs.readFileSync(SELECTORS_FILE, 'utf8'));
+} catch (error) {
+  console.error('Error loading selectors file:', error);
+  process.exit(1);
+}
 
 // Config
 const ICLOUD_PHOTOS_URL = 'https://www.icloud.com/photos/';
@@ -119,14 +129,7 @@ async function findFileInputAndUpload(page, files) {
   // We'll try both methods.
   try {
     // Attempt 1: click upload button and waitForFileChooser
-    const uploadButtonSelectors = [
-      'button[aria-label="Upload"]',
-      'button[title="Upload"]',
-      'button[data-testid*="upload"]',
-      'button[aria-label*="Upload"]',
-      'button[title*="Upload"]',
-      'input[type=file]'
-    ];
+    const uploadButtonSelectors = selectors.uploadButtonSelectors;
 
     for (const sel of uploadButtonSelectors) {
       const el = await page.$(sel);

@@ -145,6 +145,38 @@ install_system_packages() {
         print_status "INFO" "Installing exiftool via libimage-exiftool-perl..."
         apt install -y libimage-exiftool-perl
     fi
+    
+    # Install Chrome dependencies for Puppeteer
+    print_status "INFO" "Installing Chrome dependencies for Puppeteer..."
+    apt install -y \
+        libnspr4 \
+        libnss3 \
+        libatk-bridge2.0-0 \
+        libdrm2 \
+        libxkbcommon0 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxrandr2 \
+        libgbm1 \
+        libxss1 \
+        libasound2 \
+        libx11-xcb1 \
+        libxcb-dri3-0 \
+        libxcb1 \
+        libxcb-xfixes0 \
+        libxcb-xkb1 \
+        libxcb-randr0 \
+        libxcb-shape0 \
+        libxcb-glx0 \
+        libxcb-icccm4 \
+        libxcb-image0 \
+        libxcb-keysyms1 \
+        libxcb-render-util0 \
+        libxcb-render0 \
+        libxcb-shm0 \
+        libxcb-sync1 \
+        libxcb-util1 \
+        libxcb-xinerama0
 }
 
 install_nodejs() {
