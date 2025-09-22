@@ -398,7 +398,7 @@ check_python_venv() {
         # Check if packages are installed
         if [ -f "$PIPELINE_DIR/requirements.txt" ]; then
             local installed_packages=$(sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" list --format=freeze | cut -d= -f1)
-            local required_packages=("icloudpd" "pillow" "ffmpeg-python" "python-dotenv" "supabase" "psutil")
+            local required_packages=("icloudpd" "pillow" "ffmpeg-python" "python-dotenv" "supabase" "psutil" "requests")
             local missing=()
             
             for package in "${required_packages[@]}"; do
@@ -732,7 +732,7 @@ check_pipeline_dependencies() {
     fi
     
     # Check other critical pipeline dependencies
-    local critical_modules=("PIL" "ffmpeg" "dotenv" "supabase" "psutil")
+    local critical_modules=("PIL" "ffmpeg" "dotenv" "supabase" "psutil" "requests")
     for module in "${critical_modules[@]}"; do
         if sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/python" -c "import $module" 2>/dev/null; then
             print_status "OK" "Python module $module is available"
@@ -755,6 +755,9 @@ check_pipeline_dependencies() {
                         ;;
                     "psutil")
                         sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install psutil
+                        ;;
+                    "requests")
+                        sudo -u "$USER_NAME" "$PIPELINE_DIR/venv/bin/pip" install requests
                         ;;
                 esac
             fi
