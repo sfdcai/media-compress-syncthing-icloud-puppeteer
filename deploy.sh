@@ -186,6 +186,10 @@ deploy_files() {
         --exclude='PRODUCTION_READINESS_REPORT.md' \
         --exclude='EADME.md' \
         --exclude='Deduplication_sorting_README.md' \
+        --exclude='node_modules/' \
+        --exclude='venv/' \
+        --exclude='logs/' \
+        --exclude='temp/' \
         "$GIT_REPO_DIR/" "$DEPLOY_DIR/" || {
         error "Failed to deploy files"
     }

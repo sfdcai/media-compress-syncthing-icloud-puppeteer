@@ -197,10 +197,18 @@ async function findFileInputAndUpload(page, files) {
     console.log('Available buttons:', availableElements.buttons.length);
     console.log('Available inputs:', availableElements.inputs.length);
     
-    // Log some button details for debugging
-    availableElements.buttons.slice(0, 10).forEach((btn, i) => {
-      console.log(`Button ${i}:`, btn.textContent || btn.ariaLabel || btn.title || btn.className);
+    // Log detailed button information for debugging
+    console.log('\n=== DETAILED BUTTON ANALYSIS ===');
+    availableElements.buttons.forEach((btn, i) => {
+      console.log(`\nButton ${i}:`);
+      console.log(`  Text: "${btn.textContent}"`);
+      console.log(`  Aria Label: "${btn.ariaLabel}"`);
+      console.log(`  Title: "${btn.title}"`);
+      console.log(`  Class: "${btn.className}"`);
+      console.log(`  ID: "${btn.id}"`);
+      console.log(`  Data Test ID: "${btn.dataTestId}"`);
     });
+    console.log('\n=== END BUTTON ANALYSIS ===\n');
 
     // Attempt 1: Try to find and click upload button with file chooser
     const uploadButtonSelectors = selectors.uploadButtonSelectors;
@@ -258,6 +266,46 @@ async function findFileInputAndUpload(page, files) {
       await fileInputs[0].uploadFile(...files);
       console.log('Files uploaded via direct input!');
       return true;
+    }
+
+    // Attempt 3: Try clicking any clickable element to see if it opens file chooser
+    console.log('Trying fallback method: clicking any clickable element...');
+    const allClickableElements = await page.$$('button, div[role="button"], span[role="button"], a[role="button"], [onclick]');
+    console.log(`Found ${allClickableElements.length} clickable elements`);
+    
+    for (let i = 0; i < Math.min(allClickableElements.length, 10); i++) {
+      const element = allClickableElements[i];
+      try {
+        const elementInfo = await page.evaluate(el => ({
+          tagName: el.tagName,
+          textContent: el.textContent?.trim(),
+          className: el.className,
+          id: el.id,
+          visible: el.offsetParent !== null
+        }), element);
+        
+        if (elementInfo.visible) {
+          console.log(`Trying clickable element ${i + 1}: ${elementInfo.tagName} - "${elementInfo.textContent}" - ${elementInfo.className}`);
+          
+          try {
+            const [fileChooser] = await Promise.all([
+              page.waitForFileChooser({ timeout: 3000 }),
+              element.click()
+            ]);
+            
+            if (fileChooser) {
+              console.log('File chooser opened via fallback method!');
+              await fileChooser.accept(files);
+              console.log('Files accepted successfully!');
+              return true;
+            }
+          } catch (e) {
+            // No file chooser opened, continue to next element
+          }
+        }
+      } catch (e) {
+        // Element not clickable, continue
+      }
     }
 
     console.log('No upload method worked');
