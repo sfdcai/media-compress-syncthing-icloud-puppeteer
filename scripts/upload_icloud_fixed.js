@@ -230,13 +230,27 @@ async function processBatch(dir, options) {
     
     // Check if we need to login
     const loginIndicators = await page.evaluate(() => {
-      const signInButton = document.querySelector('button:contains("Sign In"), [aria-label*="Sign In"], [title*="Sign In"]');
+      // Check for sign in buttons using valid CSS selectors
+      const signInButtons = document.querySelectorAll('button, [role="button"]');
+      let hasSignInButton = false;
+      
+      for (const button of signInButtons) {
+        const text = button.textContent?.toLowerCase() || '';
+        const ariaLabel = button.getAttribute('aria-label')?.toLowerCase() || '';
+        const title = button.getAttribute('title')?.toLowerCase() || '';
+        
+        if (text.includes('sign in') || ariaLabel.includes('sign in') || title.includes('sign in')) {
+          hasSignInButton = true;
+          break;
+        }
+      }
+      
       const loginForm = document.querySelector('form[action*="signin"], form[action*="login"]');
       const appleIdLogin = window.location.href.includes('appleid.apple.com');
       const signInText = document.body.textContent.toLowerCase().includes('sign in');
       
       return {
-        hasSignInButton: !!signInButton,
+        hasSignInButton: hasSignInButton,
         hasLoginForm: !!loginForm,
         isAppleIdPage: appleIdLogin,
         hasSignInText: signInText,
@@ -261,12 +275,26 @@ async function processBatch(dir, options) {
       
       try {
         await page.waitForFunction(() => {
-          const signInButton = document.querySelector('button:contains("Sign In"), [aria-label*="Sign In"], [title*="Sign In"]');
+          // Check for sign in buttons using valid method
+          const signInButtons = document.querySelectorAll('button, [role="button"]');
+          let hasSignInButton = false;
+          
+          for (const button of signInButtons) {
+            const text = button.textContent?.toLowerCase() || '';
+            const ariaLabel = button.getAttribute('aria-label')?.toLowerCase() || '';
+            const title = button.getAttribute('title')?.toLowerCase() || '';
+            
+            if (text.includes('sign in') || ariaLabel.includes('sign in') || title.includes('sign in')) {
+              hasSignInButton = true;
+              break;
+            }
+          }
+          
           const loginForm = document.querySelector('form[action*="signin"], form[action*="login"]');
           const appleIdLogin = window.location.href.includes('appleid.apple.com');
           const signInText = document.body.textContent.toLowerCase().includes('sign in');
           
-          return !signInButton && !loginForm && !appleIdLogin && !signInText;
+          return !hasSignInButton && !loginForm && !appleIdLogin && !signInText;
         }, { timeout: 300000 });
         
         console.log('✅ Login completed successfully');

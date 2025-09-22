@@ -1,6 +1,6 @@
-# Media Pipeline
+# Media Pipeline - iCloud to Google Photos Automation
 
-A comprehensive media compression and syncing pipeline for iCloud and Google Photos, designed to run in Ubuntu LXC containers on Proxmox.
+A comprehensive media compression and syncing pipeline for iCloud and Google Photos, designed to run in Ubuntu LXC containers on Proxmox. This system automatically downloads media from iCloud, compresses it, and uploads it to both iCloud Photos and Google Photos (via Syncthing) with intelligent deduplication and organization.
 
 ## Features
 
@@ -1424,6 +1424,38 @@ sudo ./scripts/check_and_fix.sh --fix-permissions
 - Provide system logs and error messages
 - Specify your system configuration
 - Include steps to reproduce the issue
+
+## 🚨 **Known Limitations & Considerations**
+
+### **iCloud Photos Upload Limitations**
+- **Web Automation Dependency**: iCloud Photos upload relies on web automation (Puppeteer)
+- **Session Management**: Web sessions may expire and require re-authentication
+- **Upload Button Detection**: May need selector updates if iCloud changes their interface
+- **Rate Limiting**: Apple may impose rate limits on uploads
+- **2FA Requirements**: Requires two-factor authentication setup
+
+### **Google Photos Integration Limitations**
+- **Syncthing Dependency**: Google Photos integration requires Syncthing setup
+- **P2P Sync**: Requires network connectivity between devices
+- **Storage Management**: No automatic deletion from local storage after cloud upload
+- **Album Organization**: Limited album organization capabilities
+
+### **System Limitations**
+- **Headless Operation**: Some features may not work in headless environments
+- **Network Dependency**: Requires stable internet connectivity
+- **Storage Requirements**: Significant local storage needed for processing
+- **Processing Time**: Large media collections may take considerable time to process
+
+### **Authentication Limitations**
+- **iCloud App-Specific Passwords**: Requires Apple ID with 2FA and app-specific passwords
+- **Session Expiration**: Both iCloud and Google Photos sessions may expire
+- **Manual Intervention**: May require manual login for expired sessions
+
+### **Data Management Limitations**
+- **Duplicate Detection**: Based on file hashes, may not catch all duplicates
+- **Metadata Preservation**: Some metadata may be lost during compression
+- **File Format Support**: Limited to common image and video formats
+- **Batch Processing**: Large batches may timeout or fail
 
 ## License
 
