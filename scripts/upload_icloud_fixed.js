@@ -1,10 +1,10 @@
 /**
- * Advanced iCloud Upload Script
+ * Fixed iCloud Upload Script
  * 
- * This script uses advanced techniques to find and interact with upload controls
- * on the iCloud Photos web interface.
+ * This script uses the correct selectors found from Windows inspection
+ * to upload files to iCloud Photos.
  * 
- * Usage: node scripts/upload_icloud_advanced.js --dir /tmp/test_upload --interactive
+ * Usage: node scripts/upload_icloud_fixed.js --dir /tmp/test_upload --interactive
  */
 
 import puppeteer from 'puppeteer';
@@ -44,7 +44,7 @@ async function saveLedger(ledger) {
 async function saveCookies(page) {
   const cookies = await page.cookies();
   await fs.writeJson(COOKIE_FILE, cookies, { spaces: 2 });
-  console.log('Saved cookies to', COOKIE_FILE);
+  console.log('✅ Saved cookies to', COOKIE_FILE);
 }
 
 async function loadCookies(page) {
@@ -65,7 +65,6 @@ function moveFileToDir(file, destDir) {
 async function waitForPageToLoad(page) {
   console.log('⏳ Waiting for page to fully load...');
   
-  // Wait for various indicators that the page is ready
   try {
     // Wait for the main content to load
     await page.waitForSelector('body', { timeout: 10000 });
@@ -90,240 +89,110 @@ async function waitForPageToLoad(page) {
   }
 }
 
-async function findUploadControls(page) {
-  console.log('🔍 Searching for upload controls...');
+async function findUploadButton(page) {
+  console.log('🔍 Looking for upload button...');
   
   // Wait for page to be fully loaded
   await waitForPageToLoad(page);
   
-  // Try multiple approaches to find upload controls
-  const approaches = [
-    // Approach 1: Look for drag and drop areas
-    async () => {
-      console.log('🎯 Approach 1: Looking for drag-and-drop areas...');
-      const dropZones = await page.$$('[class*="drop"], [class*="upload"], [class*="drag"]');
-      if (dropZones.length > 0) {
-        console.log(`Found ${dropZones.length} potential drop zones`);
-        return dropZones;
-      }
-      return [];
-    },
-    
-    // Approach 2: Look for upload buttons in various locations
-    async () => {
-      console.log('🎯 Approach 2: Looking for upload buttons...');
-      const selectors = [
-        'button[aria-label*="upload" i]',
-        'button[title*="upload" i]',
-        'button[aria-label*="add" i]',
-        'button[title*="add" i]',
-        'button[aria-label*="import" i]',
-        'button[title*="import" i]',
-        '[role="button"][aria-label*="upload" i]',
-        '[role="button"][title*="upload" i]',
-        'button:has-text("Upload")',
-        'button:has-text("Add")',
-        'button:has-text("Import")',
-        '[data-testid*="upload"]',
-        '[data-testid*="add"]',
-        '[data-testid*="import"]'
-      ];
-      
-      for (const selector of selectors) {
-        try {
-          const elements = await page.$$(selector);
-          if (elements.length > 0) {
-            console.log(`Found ${elements.length} elements with selector: ${selector}`);
-            return elements;
-          }
-        } catch (e) {
-          // Continue to next selector
-        }
-      }
-      return [];
-    },
-    
-    // Approach 3: Look for file input elements
-    async () => {
-      console.log('🎯 Approach 3: Looking for file input elements...');
-      const fileInputs = await page.$$('input[type="file"]');
-      if (fileInputs.length > 0) {
-        console.log(`Found ${fileInputs.length} file input elements`);
-        return fileInputs;
-      }
-      return [];
-    },
-    
-    // Approach 4: Look for any clickable elements that might trigger upload
-    async () => {
-      console.log('🎯 Approach 4: Looking for any clickable upload-related elements...');
-      const allClickable = await page.$$('button, [role="button"], [onclick], [class*="button"], [class*="click"]');
-      const uploadRelated = [];
-      
-      for (const element of allClickable) {
-        try {
-          const text = await element.evaluate(el => el.textContent?.toLowerCase() || '');
-          const ariaLabel = await element.evaluate(el => el.getAttribute('aria-label')?.toLowerCase() || '');
-          const title = await element.evaluate(el => el.getAttribute('title')?.toLowerCase() || '');
-          const className = await element.evaluate(el => el.className?.toLowerCase() || '');
-          
-          if (text.includes('upload') || text.includes('add') || text.includes('import') ||
-              ariaLabel.includes('upload') || ariaLabel.includes('add') || ariaLabel.includes('import') ||
-              title.includes('upload') || title.includes('add') || title.includes('import') ||
-              className.includes('upload') || className.includes('add') || className.includes('import')) {
-            uploadRelated.push(element);
-          }
-        } catch (e) {
-          // Continue
-        }
-      }
-      
-      if (uploadRelated.length > 0) {
-        console.log(`Found ${uploadRelated.length} upload-related clickable elements`);
-        return uploadRelated;
-      }
-      return [];
-    },
-    
-    // Approach 5: Try to trigger upload via keyboard shortcuts
-    async () => {
-      console.log('🎯 Approach 5: Trying keyboard shortcuts...');
-      try {
-        // Try Ctrl+U (common upload shortcut)
-        await page.keyboard.down('Control');
-        await page.keyboard.press('KeyU');
-        await page.keyboard.up('Control');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Check if file chooser opened
-        const fileInputs = await page.$$('input[type="file"]');
-        if (fileInputs.length > 0) {
-          console.log('File chooser opened via keyboard shortcut');
-          return fileInputs;
-        }
-      } catch (e) {
-        // Continue
-      }
-      return [];
-    }
+  // Try the specific selectors we found from Windows inspection
+  const selectors = [
+    'ui-button.UploadButton',
+    'ui-button[aria-label="Upload"]',
+    'ui-button[title="Upload"]',
+    'ui-button[class*="UploadButton"]',
+    'ui-button.push.primary.PhotosButton.ToolbarButton.AppToolbarButton.UploadButton',
+    'button[aria-label="Upload"]',
+    'button[title="Upload"]',
+    'input[type="file"]'
   ];
   
-  // Try each approach
-  for (let i = 0; i < approaches.length; i++) {
+  for (const selector of selectors) {
     try {
-      const elements = await approaches[i]();
+      console.log(`🎯 Trying selector: ${selector}`);
+      const elements = await page.$$(selector);
+      
       if (elements.length > 0) {
-        console.log(`✅ Found upload controls using approach ${i + 1}`);
-        return elements;
+        console.log(`✅ Found ${elements.length} element(s) with selector: ${selector}`);
+        
+        // Get element info for debugging
+        for (let i = 0; i < elements.length; i++) {
+          const element = elements[i];
+          const elementInfo = await page.evaluate(el => ({
+            tagName: el.tagName,
+            textContent: el.textContent?.trim(),
+            ariaLabel: el.getAttribute('aria-label'),
+            title: el.getAttribute('title'),
+            className: el.className,
+            id: el.id,
+            type: el.type,
+            role: el.getAttribute('role'),
+            visible: el.offsetWidth > 0 && el.offsetHeight > 0
+          }), element);
+          
+          console.log(`Element ${i + 1} info:`, elementInfo);
+          
+          if (elementInfo.visible) {
+            return { element, selector, info: elementInfo };
+          }
+        }
       }
     } catch (error) {
-      console.log(`❌ Approach ${i + 1} failed: ${error.message}`);
+      console.log(`❌ Selector ${selector} failed: ${error.message}`);
     }
   }
   
-  console.log('❌ No upload controls found with any approach');
-  return [];
+  console.log('❌ No upload button found with any selector');
+  return null;
 }
 
-async function attemptUpload(page, files, uploadElements) {
-  console.log(`📤 Attempting upload with ${uploadElements.length} potential controls...`);
+async function attemptUpload(page, files, uploadButton) {
+  console.log(`📤 Attempting upload with ${files.length} files...`);
   
-  for (let i = 0; i < uploadElements.length; i++) {
-    const element = uploadElements[i];
-    
-    try {
-      console.log(`Testing element ${i + 1}/${uploadElements.length}...`);
-      
-      // Get element info
-      const elementInfo = await page.evaluate(el => ({
-        tagName: el.tagName,
-        textContent: el.textContent?.trim(),
-        ariaLabel: el.getAttribute('aria-label'),
-        title: el.getAttribute('title'),
-        className: el.className,
-        id: el.id,
-        type: el.type,
-        role: el.getAttribute('role')
-      }), element);
-      
-      console.log(`Element info:`, elementInfo);
-      
-      // Try different upload methods
-      const methods = [
-        // Method 1: Direct file input
-        async () => {
-          if (elementInfo.type === 'file') {
-            console.log('Using direct file input method...');
-            await element.uploadFile(...files);
-            return true;
-          }
-          return false;
-        },
-        
-        // Method 2: Click and wait for file chooser
-        async () => {
-          console.log('Using click + file chooser method...');
-          const [fileChooser] = await Promise.all([
-            page.waitForFileChooser({ timeout: 5000 }),
-            element.click()
-          ]);
-          await fileChooser.accept(files);
-          return true;
-        },
-        
-        // Method 3: Drag and drop
-        async () => {
-          console.log('Using drag and drop method...');
-          const filePaths = files.map(f => path.resolve(f));
-          await page.evaluate((filePaths) => {
-            const dataTransfer = new DataTransfer();
-            filePaths.forEach(filePath => {
-              // This won't work in headless mode, but worth trying
-              const file = new File([''], path.basename(filePath));
-              dataTransfer.items.add(file);
-            });
-            
-            const dropEvent = new DragEvent('drop', {
-              dataTransfer: dataTransfer,
-              bubbles: true
-            });
-            
-            document.body.dispatchEvent(dropEvent);
-          }, filePaths);
-          return true;
-        }
-      ];
-      
-      // Try each method
-      for (let j = 0; j < methods.length; j++) {
-        try {
-          const success = await methods[j]();
-          if (success) {
-            console.log(`✅ Upload successful using method ${j + 1}`);
-            return true;
-          }
-        } catch (error) {
-          console.log(`❌ Method ${j + 1} failed: ${error.message}`);
-        }
-      }
-      
-    } catch (error) {
-      console.log(`❌ Error testing element ${i + 1}: ${error.message}`);
+  const { element, selector, info } = uploadButton;
+  
+  try {
+    // Method 1: If it's a file input, use it directly
+    if (info.type === 'file') {
+      console.log('📁 Using direct file input method...');
+      await element.uploadFile(...files);
+      console.log('✅ Files uploaded via direct file input');
+      return true;
     }
+    
+    // Method 2: Click the button and wait for file chooser
+    console.log('🖱️  Using click + file chooser method...');
+    
+    // Set up file chooser listener
+    const [fileChooser] = await Promise.all([
+      page.waitForFileChooser({ timeout: 10000 }),
+      element.click()
+    ]);
+    
+    console.log('📂 File chooser opened, selecting files...');
+    await fileChooser.accept(files);
+    console.log('✅ Files selected in file chooser');
+    
+    // Wait a moment for the upload to start
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    return true;
+    
+  } catch (error) {
+    console.log(`❌ Upload failed: ${error.message}`);
+    return false;
   }
-  
-  return false;
 }
 
 async function processBatch(dir, options) {
   const interactive = options.interactive || false;
   const headless = (options.headless === undefined) ? HEADLESS_DEFAULT : options.headless;
 
-  console.log(`Starting advanced batch process in dir=${dir} interactive=${interactive} headless=${headless}`);
+  console.log(`Starting fixed batch process in dir=${dir} interactive=${interactive} headless=${headless}`);
 
   let browser;
   try {
-    // Launch browser with advanced options
+    // Launch browser with optimized options
     browser = await puppeteer.launch({
       headless: headless,
       args: [
@@ -335,8 +204,7 @@ async function processBatch(dir, options) {
         '--no-zygote',
         '--disable-gpu',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--enable-features=NetworkService,NetworkServiceLogging'
+        '--disable-features=VizDisplayCompositor'
       ]
     });
     
@@ -350,7 +218,7 @@ async function processBatch(dir, options) {
     // Load cookies if present
     const cookiesLoaded = await loadCookies(page);
     if (cookiesLoaded) {
-      console.log('Loaded cookies from', COOKIE_FILE);
+      console.log('✅ Loaded cookies from', COOKIE_FILE);
     }
 
     // Navigate to iCloud Photos
@@ -360,9 +228,8 @@ async function processBatch(dir, options) {
     const currentUrl = page.url();
     console.log('📍 Current URL:', currentUrl);
     
-    // Check if we need to login by looking for login indicators
+    // Check if we need to login
     const loginIndicators = await page.evaluate(() => {
-      // Check for common login page indicators
       const signInButton = document.querySelector('button:contains("Sign In"), [aria-label*="Sign In"], [title*="Sign In"]');
       const loginForm = document.querySelector('form[action*="signin"], form[action*="login"]');
       const appleIdLogin = window.location.href.includes('appleid.apple.com');
@@ -392,7 +259,6 @@ async function processBatch(dir, options) {
       console.log('🔐 Login required. Please complete login and 2FA in the browser...');
       console.log('⏳ Waiting for you to complete login (timeout: 5 minutes)...');
       
-      // Wait for navigation away from login page or for login indicators to disappear
       try {
         await page.waitForFunction(() => {
           const signInButton = document.querySelector('button:contains("Sign In"), [aria-label*="Sign In"], [title*="Sign In"]');
@@ -453,19 +319,19 @@ async function processBatch(dir, options) {
 
     console.log('Files to upload:', toUpload.map(x => path.basename(x.file)).join(', '));
 
-    // Find upload controls
-    const uploadElements = await findUploadControls(page);
+    // Find upload button
+    const uploadButton = await findUploadButton(page);
     
-    if (uploadElements.length === 0) {
-      throw new Error('Could not find any upload controls on the page');
+    if (!uploadButton) {
+      throw new Error('Could not find upload button on the page');
     }
 
     // Attempt upload
     const filePaths = toUpload.map(x => x.file);
-    const uploadSuccess = await attemptUpload(page, filePaths, uploadElements);
+    const uploadSuccess = await attemptUpload(page, filePaths, uploadButton);
     
     if (!uploadSuccess) {
-      throw new Error('All upload methods failed');
+      throw new Error('Upload failed');
     }
 
     // Wait for upload to complete
@@ -478,7 +344,7 @@ async function processBatch(dir, options) {
       ledger[item.hash] = {
         fileName: path.basename(newPath),
         uploadedAt: (new Date()).toISOString(),
-        method: 'web-advanced'
+        method: 'web-fixed'
       };
     }
     
@@ -510,7 +376,7 @@ async function main() {
     else if (argv[i] === '--interactive') args.interactive = true;
     else if (argv[i] === '--headless') args.headless = argv[++i] === 'true';
     else if (argv[i] === '--help') { 
-      console.log('Usage: node upload_icloud_advanced.js --dir /path/to/dir [options]');
+      console.log('Usage: node upload_icloud_fixed.js --dir /path/to/dir [options]');
       console.log('Options:');
       console.log('  --dir <path>       Directory containing files to upload');
       console.log('  --interactive      Use interactive mode for login');

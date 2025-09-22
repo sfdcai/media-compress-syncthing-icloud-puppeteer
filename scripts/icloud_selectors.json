@@ -1,5 +1,10 @@
 {
   "uploadButtonSelectors": [
+    "ui-button.UploadButton",
+    "ui-button[aria-label=\"Upload\"]",
+    "ui-button[title=\"Upload\"]",
+    "ui-button[class*=\"UploadButton\"]",
+    "ui-button.push.primary.PhotosButton.ToolbarButton.AppToolbarButton.UploadButton",
     "button[aria-label=\"Upload\"]",
     "button[title=\"Upload\"]",
     "button[data-testid*=\"upload\"]",
@@ -52,8 +57,8 @@
   ],
   "pageSelectors": {
     "photosPage": "div[data-testid=\"photos-page\"]",
-    "uploadButton": "button[aria-label=\"Upload\"]",
-    "fileInput": "input[type=file]",
+    "uploadButton": "ui-button.UploadButton",
+    "fileInput": "input[type=\"file\"]",
     "uploadDialog": "div[role=\"dialog\"]",
     "uploadProgress": "div[data-testid=\"upload-progress\"]"
   },
