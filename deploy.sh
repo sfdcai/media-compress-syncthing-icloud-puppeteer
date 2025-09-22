@@ -14,6 +14,9 @@ LOG_FILE="/opt/media-pipeline/logs/deploy.log"
 SERVICE_USER="media-pipeline"
 SERVICE_GROUP="media-pipeline"
 
+# Ensure logs directory exists from the start
+mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -21,28 +24,57 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Helper function to run commands with or without sudo based on current user
+run_cmd() {
+    if [[ $EUID -eq 0 ]]; then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
+# Helper function to run commands as service user
+run_as_service_user() {
+    if [[ $EUID -eq 0 ]]; then
+        sudo -u "$SERVICE_USER" "$@"
+    else
+        sudo -u "$SERVICE_USER" "$@"
+    fi
+}
+
+# Ensure logs directory exists
+ensure_logs_dir() {
+    run_cmd mkdir -p "$(dirname "$LOG_FILE")"
+}
+
 # Logging function
 log() {
+    ensure_logs_dir
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 error() {
+    ensure_logs_dir
     echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"
     exit 1
 }
 
 success() {
+    ensure_logs_dir
     echo -e "${GREEN}[SUCCESS]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 warning() {
+    ensure_logs_dir
     echo -e "${YELLOW}[WARNING]${NC} $1" | tee -a "$LOG_FILE"
 }
 
 # Check if running as root
 check_root() {
     if [[ $EUID -eq 0 ]]; then
-        error "This script should not be run as root. Please run as a user with sudo privileges."
+        warning "Running as root. This is not recommended for production deployments."
+        warning "Consider running as a regular user with sudo privileges instead."
+        warning "Continuing with root privileges..."
     fi
 }
 
@@ -65,8 +97,8 @@ check_prerequisites() {
         error "Deployment directory $DEPLOY_DIR does not exist. Please run the installation script first."
     fi
     
-    # Check if user has sudo privileges
-    if ! sudo -n true 2>/dev/null; then
+    # Check if user has sudo privileges (only if not running as root)
+    if [[ $EUID -ne 0 ]] && ! sudo -n true 2>/dev/null; then
         error "This script requires sudo privileges. Please ensure you can run sudo commands."
     fi
     
@@ -81,16 +113,16 @@ create_backup() {
     BACKUP_TIMESTAMP=$(date '+%Y%m%d_%H%M%S')
     CURRENT_BACKUP_DIR="${BACKUP_DIR}_${BACKUP_TIMESTAMP}"
     
-    sudo mkdir -p "$CURRENT_BACKUP_DIR"
+    run_cmd mkdir -p "$CURRENT_BACKUP_DIR"
     
     # Backup current deployment (excluding logs and temp files)
-    sudo rsync -av --exclude='logs/' --exclude='temp/' --exclude='venv/' \
+    run_cmd rsync -av --exclude='logs/' --exclude='temp/' --exclude='venv/' \
         "$DEPLOY_DIR/" "$CURRENT_BACKUP_DIR/" || {
         error "Failed to create backup"
     }
     
     # Keep only last 5 backups
-    sudo find "$BACKUP_DIR"* -maxdepth 0 -type d 2>/dev/null | sort -r | tail -n +6 | sudo xargs rm -rf
+    run_cmd find "$BACKUP_DIR"* -maxdepth 0 -type d 2>/dev/null | sort -r | tail -n +6 | run_cmd xargs rm -rf
     
     success "Backup created at $CURRENT_BACKUP_DIR"
     echo "$CURRENT_BACKUP_DIR" > /tmp/last_backup_path
@@ -132,10 +164,10 @@ deploy_files() {
     log "Deploying files to $DEPLOY_DIR..."
     
     # Create necessary directories
-    sudo mkdir -p "$DEPLOY_DIR"/{scripts,config,supabase,logs,temp}
+    run_cmd mkdir -p "$DEPLOY_DIR"/{scripts,config,supabase,logs,temp}
     
     # Copy application files (excluding git directory and development files)
-    sudo rsync -av --delete \
+    run_cmd rsync -av --delete \
         --exclude='.git/' \
         --exclude='*.md' \
         --exclude='deploy.sh' \
@@ -159,12 +191,12 @@ deploy_files() {
     }
     
     # Set proper ownership
-    sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$DEPLOY_DIR"
+    run_cmd chown -R "$SERVICE_USER:$SERVICE_GROUP" "$DEPLOY_DIR"
     
     # Set proper permissions
-    sudo chmod -R 755 "$DEPLOY_DIR"
-    sudo chmod +x "$DEPLOY_DIR"/scripts/*.py
-    sudo chmod +x "$DEPLOY_DIR"/scripts/*.sh
+    run_cmd chmod -R 755 "$DEPLOY_DIR"
+    run_cmd chmod +x "$DEPLOY_DIR"/scripts/*.py
+    run_cmd chmod +x "$DEPLOY_DIR"/scripts/*.sh
     
     success "Files deployed successfully"
 }
@@ -176,15 +208,15 @@ update_venv() {
     # Check if virtual environment exists
     if [[ ! -d "$DEPLOY_DIR/venv" ]]; then
         log "Creating new virtual environment..."
-        sudo -u "$SERVICE_USER" python3 -m venv "$DEPLOY_DIR/venv"
+        run_as_service_user python3 -m venv "$DEPLOY_DIR/venv"
     fi
     
     # Update pip
-    sudo -u "$SERVICE_USER" "$DEPLOY_DIR/venv/bin/pip" install --upgrade pip
+    run_as_service_user "$DEPLOY_DIR/venv/bin/pip" install --upgrade pip
     
     # Install/update requirements
     if [[ -f "$DEPLOY_DIR/requirements.txt" ]]; then
-        sudo -u "$SERVICE_USER" "$DEPLOY_DIR/venv/bin/pip" install -r "$DEPLOY_DIR/requirements.txt"
+        run_as_service_user "$DEPLOY_DIR/venv/bin/pip" install -r "$DEPLOY_DIR/requirements.txt"
     fi
     
     success "Python virtual environment updated"
@@ -196,7 +228,7 @@ update_node_deps() {
     
     if [[ -f "$DEPLOY_DIR/package.json" ]]; then
         cd "$DEPLOY_DIR"
-        sudo -u "$SERVICE_USER" npm install --production
+        run_as_service_user npm install --production
         cd "$GIT_REPO_DIR"
     fi
     
@@ -223,7 +255,7 @@ validate_deployment() {
         
         if [[ ! -x "$DEPLOY_DIR/$script" ]]; then
             warning "Script $script is not executable, fixing..."
-            sudo chmod +x "$DEPLOY_DIR/$script"
+            run_cmd chmod +x "$DEPLOY_DIR/$script"
         fi
     done
     
@@ -233,7 +265,7 @@ validate_deployment() {
     fi
     
     # Test Python environment
-    if ! sudo -u "$SERVICE_USER" "$DEPLOY_DIR/venv/bin/python" -c "import supabase, icloudpd" 2>/dev/null; then
+    if ! run_as_service_user "$DEPLOY_DIR/venv/bin/python" -c "import supabase, icloudpd" 2>/dev/null; then
         warning "Some Python dependencies may be missing. Check the virtual environment."
     fi
     
@@ -247,7 +279,7 @@ restart_services() {
     # Check if there are any systemd services for the media pipeline
     if systemctl is-active --quiet media-pipeline 2>/dev/null; then
         log "Restarting media-pipeline service..."
-        sudo systemctl restart media-pipeline
+        run_cmd systemctl restart media-pipeline
         success "Service restarted"
     else
         log "No active media-pipeline service found"
@@ -262,8 +294,8 @@ rollback() {
         BACKUP_PATH=$(cat /tmp/last_backup_path)
         if [[ -d "$BACKUP_PATH" ]]; then
             log "Restoring from backup: $BACKUP_PATH"
-            sudo rsync -av --delete "$BACKUP_PATH/" "$DEPLOY_DIR/"
-            sudo chown -R "$SERVICE_USER:$SERVICE_GROUP" "$DEPLOY_DIR"
+            run_cmd rsync -av --delete "$BACKUP_PATH/" "$DEPLOY_DIR/"
+            run_cmd chown -R "$SERVICE_USER:$SERVICE_GROUP" "$DEPLOY_DIR"
             success "Rollback completed"
         fi
     fi
