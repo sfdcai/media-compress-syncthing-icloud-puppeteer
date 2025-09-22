@@ -4,7 +4,7 @@ A comprehensive media compression and syncing pipeline for iCloud and Google Pho
 
 ## Features
 
-- **Automated Download**: Downloads media from iCloud using icloudpd
+- **Automated Download**: Downloads media from iCloud using icloudpd with database tracking
 - **Smart Deduplication**: Removes duplicate files using MD5 hashing
 - **Progressive Compression**: Compresses media with age-based recompression
 - **Dual Upload**: Syncs to both iCloud Photos and Google Photos (via Syncthing)
@@ -12,6 +12,10 @@ A comprehensive media compression and syncing pipeline for iCloud and Google Pho
 - **Database Tracking**: Comprehensive logging and tracking via Supabase
 - **Feature Toggles**: Enable/disable individual components
 - **LXC Ready**: Optimized for Ubuntu LXC containers on Proxmox
+- **Environment Management**: Stable Python environment with backup/restore
+- **Sync Monitoring**: Real-time Syncthing sync status monitoring
+- **Batch Processing**: Configurable batch sizes for optimal performance
+- **Error Recovery**: Comprehensive error handling and recovery mechanisms
 
 ## Architecture
 
@@ -26,8 +30,23 @@ A comprehensive media compression and syncing pipeline for iCloud and Google Pho
 6. Sort uploaded files → sorted/yyyy/mm/dd/
 7. Verify & cleanup → Remove processed files
 ```
-start with 
+## 🎯 **Production Status: READY**
+
+**✅ All core components are working and production-ready!**
+
+### **Latest Updates (December 2024)**
+- ✅ Enhanced iCloud download with database tracking
+- ✅ Complete Pixel sync workflow with Syncthing monitoring
+- ✅ Robust environment management system
+- ✅ Comprehensive error handling and recovery
+- ✅ Real-time sync status monitoring
+- ✅ Configurable batch processing
+- ✅ Database backfill utilities
+
+### **Quick Start Command**
+```bash
 bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syncthing-icloud-puppeteer/main/setup-git-clone.sh)"
+```
 
 ## 🚀 Quick Start
 
@@ -35,7 +54,10 @@ bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syn
 
 #### **Step 1: Initial Setup**
 ```bash
-# Clone the repository
+# Quick setup (recommended)
+bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syncthing-icloud-puppeteer/main/setup-git-clone.sh)"
+
+# Or manual setup
 git clone https://github.com/sfdcai/media-compress-syncthing-icloud-puppeteer.git
 cd media-compress-syncthing-icloud-puppeteer
 
@@ -323,6 +345,50 @@ The `test_supabase.py` script performs comprehensive testing of your Supabase se
 - `batches` - Tracks batch processing operations (icloud/pixel uploads)
 - `duplicate_files` - Tracks duplicate file relationships
 - `pipeline_logs` - Records pipeline step execution and status
+
+### **Production Scripts Usage:**
+
+#### **Individual Operations:**
+```bash
+# Download from iCloud (with database tracking)
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/download_from_icloud.py
+
+# Prepare files for Pixel sync
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/prepare_pixel_sync.py
+
+# Monitor Syncthing sync status
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/monitor_syncthing_sync.py
+
+# Complete Pixel sync workflow
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pixel_sync.py
+
+# Run complete pipeline
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pipeline.py
+```
+
+#### **Environment Management:**
+```bash
+# Create stable environment
+sudo ./scripts/create_stable_environment.sh
+
+# Backup environment
+sudo ./scripts/backup_environment.sh backup
+
+# Quick environment fix
+sudo ./scripts/quick_env_fix.sh
+```
+
+#### **Testing & Debugging:**
+```bash
+# Test Supabase connection
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/test_supabase.py
+
+# Test iCloud credentials
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/test_icloud_credentials.py
+
+# Backfill database with existing files
+sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/backfill_database.py
+```
 
 #### **Running the test:**
 ```bash
