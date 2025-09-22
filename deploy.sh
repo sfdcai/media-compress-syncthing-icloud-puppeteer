@@ -190,6 +190,7 @@ deploy_files() {
         --exclude='venv/' \
         --exclude='logs/' \
         --exclude='temp/' \
+        --exclude='config/settings.env' \
         "$GIT_REPO_DIR/" "$DEPLOY_DIR/" || {
         error "Failed to deploy files"
     }
