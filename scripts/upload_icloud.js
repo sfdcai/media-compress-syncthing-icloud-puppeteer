@@ -104,65 +104,168 @@ async function getGalleryCount(page) {
 }
 
 async function openICloudPhotos(page, interactive) {
+  console.log('Navigating to iCloud Photos...');
   await page.goto(ICLOUD_PHOTOS_URL, { waitUntil: 'networkidle2', timeout: 120000 });
-  // If Apple login page detected, interactive must be true for MFA
-  if (page.url().includes('appleid.apple.com') || page.url().includes('signin')) {
+  
+  const currentUrl = page.url();
+  console.log('Current URL after navigation:', currentUrl);
+  
+  // Check for various login/authentication pages
+  const isLoginPage = currentUrl.includes('appleid.apple.com') || 
+                     currentUrl.includes('signin') || 
+                     currentUrl.includes('login') ||
+                     currentUrl.includes('auth') ||
+                     currentUrl.includes('authentication');
+  
+  if (isLoginPage) {
+    console.log('Detected login/authentication page');
+    
     if (!interactive) {
+      console.log('Not in interactive mode. Please run with --interactive flag to complete login.');
       throw new Error('Not logged in. Run once with --interactive to complete Apple login & MFA.');
     }
-    console.log('On Apple login page — please complete login and 2FA in the opened browser.');
-    // Wait for user to finish authentication
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 300000 }); // 5 min to login
-    console.log('Login navigation completed, saving cookies.');
-    await saveCookies(page);
+    
+    console.log('Interactive mode enabled. Please complete login and 2FA in the opened browser.');
+    console.log('Waiting for authentication to complete (up to 5 minutes)...');
+    
+    try {
+      // Wait for navigation away from login page
+      await page.waitForNavigation({ 
+        waitUntil: 'networkidle2', 
+        timeout: 300000 // 5 minutes
+      });
+      
+      const newUrl = page.url();
+      console.log('Navigation completed. New URL:', newUrl);
+      
+      // Check if we're still on a login page
+      const stillOnLoginPage = newUrl.includes('appleid.apple.com') || 
+                              newUrl.includes('signin') || 
+                              newUrl.includes('login') ||
+                              newUrl.includes('auth') ||
+                              newUrl.includes('authentication');
+      
+      if (stillOnLoginPage) {
+        console.log('Still on login page. Authentication may have failed or timed out.');
+        throw new Error('Authentication failed or timed out. Please try again.');
+      }
+      
+      console.log('Authentication successful! Saving cookies...');
+      await saveCookies(page);
+      
+    } catch (error) {
+      if (error.name === 'TimeoutError') {
+        console.log('Authentication timed out after 5 minutes.');
+        throw new Error('Authentication timed out. Please try again with --interactive flag.');
+      }
+      throw error;
+    }
   } else {
-    // try to check if page loaded into Photos interface
+    console.log('Already logged in or on Photos page. Waiting for UI to stabilize...');
     // Wait a bit for UI to stabilize
     await new Promise(resolve => setTimeout(resolve, 2000));
   }
 }
 
 async function findFileInputAndUpload(page, files) {
-  // Common approach: find <input type="file"> and set files
-  // iCloud Photos hides this inside a menu — simpler is to open the Upload dialog and use file chooser.
-  // We'll try both methods.
+  console.log('Attempting to find upload control...');
+  
   try {
-    // Attempt 1: click upload button and waitForFileChooser
-    const uploadButtonSelectors = selectors.uploadButtonSelectors;
+    // First, let's see what's available on the page
+    const availableElements = await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button')).map(btn => ({
+        tagName: btn.tagName,
+        textContent: btn.textContent?.trim(),
+        ariaLabel: btn.getAttribute('aria-label'),
+        title: btn.getAttribute('title'),
+        className: btn.className,
+        id: btn.id,
+        dataTestId: btn.getAttribute('data-testid')
+      }));
+      
+      const inputs = Array.from(document.querySelectorAll('input')).map(input => ({
+        tagName: input.tagName,
+        type: input.type,
+        className: input.className,
+        id: input.id,
+        dataTestId: input.getAttribute('data-testid')
+      }));
+      
+      return { buttons, inputs };
+    });
+    
+    console.log('Available buttons:', availableElements.buttons.length);
+    console.log('Available inputs:', availableElements.inputs.length);
+    
+    // Log some button details for debugging
+    availableElements.buttons.slice(0, 10).forEach((btn, i) => {
+      console.log(`Button ${i}:`, btn.textContent || btn.ariaLabel || btn.title || btn.className);
+    });
 
-    for (const sel of uploadButtonSelectors) {
-      const el = await page.$(sel);
-      if (!el) continue;
-      try {
-        const [fileChooser] = await Promise.all([
-          page.waitForFileChooser({ timeout: 5000 }),
-          el.click().catch(() => {})
-        ]);
-        if (fileChooser) {
-          await fileChooser.accept(files);
-          return true;
+    // Attempt 1: Try to find and click upload button with file chooser
+    const uploadButtonSelectors = selectors.uploadButtonSelectors;
+    console.log(`Trying ${uploadButtonSelectors.length} upload button selectors...`);
+
+    for (let i = 0; i < uploadButtonSelectors.length; i++) {
+      const sel = uploadButtonSelectors[i];
+      console.log(`Trying selector ${i + 1}/${uploadButtonSelectors.length}: ${sel}`);
+      
+      const elements = await page.$$(sel);
+      if (elements.length > 0) {
+        console.log(`Found ${elements.length} element(s) with selector: ${sel}`);
+        
+        for (let j = 0; j < elements.length; j++) {
+          const el = elements[j];
+          try {
+            // Get element details
+            const elementInfo = await page.evaluate(el => ({
+              textContent: el.textContent?.trim(),
+              ariaLabel: el.getAttribute('aria-label'),
+              title: el.getAttribute('title'),
+              className: el.className,
+              visible: el.offsetParent !== null
+            }), el);
+            
+            console.log(`Element ${j + 1} info:`, elementInfo);
+            
+            if (elementInfo.visible) {
+              console.log(`Attempting to click element ${j + 1}...`);
+              
+              const [fileChooser] = await Promise.all([
+                page.waitForFileChooser({ timeout: 10000 }),
+                el.click()
+              ]);
+              
+              if (fileChooser) {
+                console.log('File chooser opened, accepting files...');
+                await fileChooser.accept(files);
+                console.log('Files accepted successfully!');
+                return true;
+              }
+            }
+          } catch (e) {
+            console.log(`Failed to click element ${j + 1}:`, e.message);
+          }
         }
-      } catch (e) {
-        // maybe no file chooser; fallthrough
       }
     }
 
     // Attempt 2: directly find input[type=file] and upload
+    console.log('Trying direct file input upload...');
     const fileInputs = await page.$$('input[type=file]');
     if (fileInputs.length) {
+      console.log(`Found ${fileInputs.length} file input(s)`);
       await fileInputs[0].uploadFile(...files);
+      console.log('Files uploaded via direct input!');
       return true;
     }
 
-    // Attempt 3: use a direct script to create an input element and set files (rare)
-    await page.evaluate(async (paths) => {
-      // not possible to set real File objects in page context without file chooser
-      return false;
-    }, files);
+    console.log('No upload method worked');
+    return false;
   } catch (err) {
-    console.warn('Upload attempt failed:', err.message);
+    console.error('Upload attempt failed:', err.message);
+    return false;
   }
-  return false;
 }
 
 async function processBatch(dir, options) {

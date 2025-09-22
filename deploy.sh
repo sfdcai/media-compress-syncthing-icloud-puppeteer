@@ -366,15 +366,20 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     exit 0
 fi
 
-# Handle force deployment
-if [[ "$1" == "--force" ]]; then
-    FORCE_DEPLOY=true
-fi
+# Handle command line arguments
+FORCE_DEPLOY=false
+NO_BACKUP=false
 
-# Handle no-backup option
-if [[ "$1" == "--no-backup" ]]; then
-    NO_BACKUP=true
-fi
+for arg in "$@"; do
+    case $arg in
+        --force)
+            FORCE_DEPLOY=true
+            ;;
+        --no-backup)
+            NO_BACKUP=true
+            ;;
+    esac
+done
 
 # Run main function
 main
