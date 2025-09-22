@@ -312,9 +312,11 @@ main() {
     check_root
     check_prerequisites
     
-    # Only proceed if there are updates
-    if fetch_updates; then
-        create_backup
+    # Only proceed if there are updates or force deployment
+    if [[ "$FORCE_DEPLOY" == "true" ]] || fetch_updates; then
+        if [[ "$NO_BACKUP" != "true" ]]; then
+            create_backup
+        fi
         deploy_files
         update_venv
         update_node_deps

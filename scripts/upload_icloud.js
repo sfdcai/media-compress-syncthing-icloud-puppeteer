@@ -118,7 +118,7 @@ async function openICloudPhotos(page, interactive) {
   } else {
     // try to check if page loaded into Photos interface
     // Wait a bit for UI to stabilize
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 }
 
@@ -171,13 +171,24 @@ async function processBatch(dir, options) {
 
   console.log(`Starting batch process in dir=${dir} interactive=${interactive} headless=${headless}`);
 
-  // open browser
-  const browser = await puppeteer.launch({
-    headless: headless,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
-  const page = await browser.newPage();
-  page.setDefaultNavigationTimeout(120000);
+  let browser;
+  try {
+    // open browser
+    browser = await puppeteer.launch({
+      headless: headless,
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu'
+      ]
+    });
+    const page = await browser.newPage();
+    page.setDefaultNavigationTimeout(120000);
+    page.setDefaultTimeout(30000);
 
   // load cookies if present
   const cookiesLoaded = await loadCookies(page);
@@ -188,7 +199,7 @@ async function processBatch(dir, options) {
   await openICloudPhotos(page, interactive);
 
   // after navigation to photos, wait for UI
-  await page.waitForTimeout(3000);
+  await new Promise(resolve => setTimeout(resolve, 3000));
 
   // Load ledger (uploaded hashes)
   const ledger = await loadLedger();
@@ -263,13 +274,24 @@ async function processBatch(dir, options) {
       uploadedAt: (new Date()).toISOString()
     };
   }
-  await saveLedger(ledger);
+    await saveLedger(ledger);
 
-  // Save cookies (refresh session)
-  await saveCookies(page);
+    // Save cookies (refresh session)
+    await saveCookies(page);
 
-  await browser.close();
-  console.log('Batch complete.');
+    await browser.close();
+    console.log('Batch complete.');
+  } catch (error) {
+    console.error('Error during batch processing:', error);
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (closeError) {
+        console.error('Error closing browser:', closeError);
+      }
+    }
+    throw error;
+  }
 }
 
 // CLI argument parsing
@@ -296,5 +318,6 @@ async function main() {
 
 main().catch(err => {
   console.error('Fatal error:', err);
+  console.error('Stack trace:', err.stack);
   process.exit(2);
 });
