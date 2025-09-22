@@ -10,7 +10,22 @@ from dotenv import load_dotenv
 from supabase import create_client
 
 # Load environment variables
-load_dotenv("config/settings.env")
+# Try multiple paths to find the config file
+config_paths = [
+    "config/settings.env",  # Relative to current directory
+    "../config/settings.env",  # Relative to scripts directory
+    "/opt/media-pipeline/config/settings.env"  # Absolute path
+]
+
+config_loaded = False
+for config_path in config_paths:
+    if os.path.exists(config_path):
+        load_dotenv(config_path)
+        config_loaded = True
+        break
+
+if not config_loaded:
+    print(f"Warning: Could not find config file. Tried: {config_paths}")
 
 # Supabase configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")

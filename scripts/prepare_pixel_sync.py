@@ -7,14 +7,21 @@ import os
 import sys
 import shutil
 from pathlib import Path
+
+# Ensure we can find the config file
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+config_path = os.path.join(project_root, "config", "settings.env")
+
+# Load environment variables before importing utils
 from dotenv import load_dotenv
+load_dotenv(config_path)
+
+# Now import utils (which will use the loaded environment)
 from utils import (
     log_step, ensure_directory_exists, get_media_files_by_directory,
     update_file_status, create_batch_record, update_batch_status
 )
-
-# Load environment variables
-load_dotenv("config/settings.env")
 
 def get_files_for_pixel_sync(originals_dir, max_files=None):
     """Get files from originals directory for Pixel sync"""
@@ -44,13 +51,19 @@ def copy_files_to_pixel_bridge(files, bridge_dir):
         ensure_directory_exists(bridge_dir)
         
         copied_files = []
+        skipped_files = []
         total_size_gb = 0
         
-        for file_info in files:
+        print(f"Processing {len(files)} files for bridge directory: {bridge_dir}")
+        
+        for i, file_info in enumerate(files, 1):
             file_path = file_info['file_path']
             filename = file_info['filename']
             
+            print(f"Processing {i}/{len(files)}: {filename}")
+            
             if not os.path.exists(file_path):
+                print(f"  ⚠ File not found: {file_path}")
                 log_step("prepare_pixel_sync", f"File not found: {file_path}", "warning")
                 continue
             
@@ -58,32 +71,61 @@ def copy_files_to_pixel_bridge(files, bridge_dir):
                 # Create destination path
                 dest_path = os.path.join(bridge_dir, filename)
                 
-                # Handle filename conflicts
+                # Check if file already exists
+                if os.path.exists(dest_path):
+                    print(f"  ✓ File already exists in bridge: {filename}")
+                    # File already exists, add it to copied files
+                    file_info['bridge_path'] = dest_path
+                    file_info['file_size'] = os.path.getsize(dest_path)
+                    copied_files.append(file_info)
+                    total_size_gb += file_info['file_size'] / (1024**3)
+                    skipped_files.append(filename)
+                    continue
+                
+                # Handle filename conflicts (if any)
                 counter = 1
+                original_dest_path = dest_path
                 while os.path.exists(dest_path):
                     name, ext = os.path.splitext(filename)
                     dest_path = os.path.join(bridge_dir, f"{name}_{counter}{ext}")
                     counter += 1
                 
+                if dest_path != original_dest_path:
+                    print(f"  📝 Renamed to avoid conflict: {os.path.basename(dest_path)}")
+                
                 # Copy file
+                print(f"  📋 Copying to: {dest_path}")
                 shutil.copy2(file_path, dest_path)
                 
-                # Update file info
-                file_info['bridge_path'] = dest_path
-                file_info['file_size'] = os.path.getsize(dest_path)
-                copied_files.append(file_info)
-                total_size_gb += file_info['file_size'] / (1024**3)
-                
-                log_step("prepare_pixel_sync", f"Copied {filename} to bridge", "info")
+                # Verify copy
+                if os.path.exists(dest_path):
+                    # Update file info
+                    file_info['bridge_path'] = dest_path
+                    file_info['file_size'] = os.path.getsize(dest_path)
+                    copied_files.append(file_info)
+                    total_size_gb += file_info['file_size'] / (1024**3)
+                    print(f"  ✓ Successfully copied: {filename}")
+                    log_step("prepare_pixel_sync", f"Copied {filename} to bridge", "info")
+                else:
+                    print(f"  ✗ Copy verification failed: {dest_path}")
+                    log_step("prepare_pixel_sync", f"Copy verification failed for {filename}", "error")
                 
             except Exception as e:
+                print(f"  ✗ Failed to copy {filename}: {e}")
                 log_step("prepare_pixel_sync", f"Failed to copy {filename}: {e}", "error")
                 continue
         
-        log_step("prepare_pixel_sync", f"Copied {len(copied_files)} files to bridge ({total_size_gb:.2f} GB)", "success")
+        print(f"\nCopy Summary:")
+        print(f"  Files processed: {len(files)}")
+        print(f"  Files copied/skipped: {len(copied_files)}")
+        print(f"  Files skipped (already exist): {len(skipped_files)}")
+        print(f"  Total size: {total_size_gb:.2f} GB")
+        
+        log_step("prepare_pixel_sync", f"Processed {len(copied_files)} files to bridge ({total_size_gb:.2f} GB)", "success")
         return copied_files, total_size_gb
         
     except Exception as e:
+        print(f"ERROR in copy_files_to_pixel_bridge: {e}")
         log_step("prepare_pixel_sync", f"Error copying files to bridge: {e}", "error")
         return [], 0
 
