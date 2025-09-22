@@ -191,6 +191,8 @@ deploy_files() {
         --exclude='logs/' \
         --exclude='temp/' \
         --exclude='config/settings.env' \
+        --exclude='cookies.json' \
+        --exclude='uploaded_manifest.json' \
         "$GIT_REPO_DIR/" "$DEPLOY_DIR/" || {
         error "Failed to deploy files"
     }
@@ -224,7 +226,12 @@ update_venv() {
         run_as_service_user "$DEPLOY_DIR/venv/bin/pip" install -r "$DEPLOY_DIR/requirements.txt"
     fi
     
-    success "Python virtual environment updated"
+    # Test the environment
+    if run_as_service_user "$DEPLOY_DIR/venv/bin/python" -c "import sys; print('Python OK')" 2>/dev/null; then
+        success "Python virtual environment updated and working"
+    else
+        warning "Python virtual environment may have issues"
+    fi
 }
 
 # Update Node.js dependencies
@@ -234,10 +241,18 @@ update_node_deps() {
     if [[ -f "$DEPLOY_DIR/package.json" ]]; then
         cd "$DEPLOY_DIR"
         run_as_service_user npm install --production
+        
+        # Test the environment
+        if run_as_service_user node -e "console.log('Node.js OK')" 2>/dev/null; then
+            success "Node.js dependencies updated and working"
+        else
+            warning "Node.js environment may have issues"
+        fi
+        
         cd "$GIT_REPO_DIR"
+    else
+        warning "package.json not found, skipping Node.js dependencies"
     fi
-    
-    success "Node.js dependencies updated"
 }
 
 # Validate deployment
