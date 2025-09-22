@@ -17,7 +17,6 @@ import puppeteer from 'puppeteer';
 import fs from 'fs-extra';
 import path from 'path';
 import crypto from 'crypto';
-import os from 'os';
 
 const COOKIE_FILE = path.resolve('./cookies.json');
 const PROCESSED_DB = path.resolve('./uploaded_manifest.json'); // local ledger

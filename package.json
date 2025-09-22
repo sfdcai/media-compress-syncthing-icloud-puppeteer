@@ -2,13 +2,15 @@
   "name": "media-pipeline",
   "version": "1.0.1",
   "description": "Media compression and syncing pipeline for iCloud and Google Photos",
+  "type": "module",
   "main": "scripts/upload_icloud.js",
   "scripts": {
     "start": "node scripts/upload_icloud.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "puppeteer": "^24.10.2"
+    "puppeteer": "^24.10.2",
+    "fs-extra": "^11.2.0"
   },
   "keywords": [
     "media",
