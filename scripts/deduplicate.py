@@ -9,9 +9,10 @@ import sys
 import shutil
 from pathlib import Path
 from utils import (
-    log_step, calculate_file_hash, get_file_size_gb, 
-    ensure_directory_exists, is_duplicate_file, 
-    log_duplicate_file, get_feature_toggle, retry
+    log_step, calculate_file_hash, get_file_size_gb,
+    ensure_directory_exists, is_duplicate_file,
+    log_duplicate_file, get_feature_toggle, retry,
+    create_media_file_record
 )
 
 def get_media_files(directory, extensions=None):
@@ -66,6 +67,18 @@ def process_file_deduplication(file_path, duplicates_dir, hash_algorithm="md5"):
         else:
             # File is unique, log it
             log_step("deduplication", f"Unique file: {file_path}", "info")
+            record_id = create_media_file_record(
+                file_path=file_path,
+                file_hash=file_hash,
+                source_path=file_path,
+            )
+
+            if not record_id:
+                log_step(
+                    "deduplication",
+                    f"Failed to record unique file in database: {file_path}",
+                    "warning",
+                )
             return {
                 "file_path": file_path,
                 "hash": file_hash,
@@ -86,7 +99,13 @@ def deduplicate_directory(source_dir, duplicates_dir=None, hash_algorithm="md5",
     if duplicates_dir is None:
         duplicates_dir = os.path.join(source_dir, "duplicates")
     
-    ensure_directory_exists(duplicates_dir)
+    if not ensure_directory_exists(duplicates_dir):
+        log_step(
+            "deduplication",
+            f"Failed to ensure duplicates directory exists at {duplicates_dir}",
+            "error",
+        )
+        return False
     
     log_step("deduplication", f"Starting deduplication of {source_dir}", "info")
     
