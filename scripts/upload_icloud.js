@@ -17,6 +17,8 @@ import puppeteer from 'puppeteer';
 import fs from 'fs-extra';
 import path from 'path';
 import crypto from 'crypto';
+import readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 
 const COOKIE_FILE = path.resolve('./cookies.json');
 const PROCESSED_DB = path.resolve('./uploaded_manifest.json'); // local ledger
@@ -37,7 +39,7 @@ const UPLOAD_WAIT_MS = 300000; // wait up to 5 minutes for uploads to appear
 const BATCH_SIZE = 20; // change as needed
 const MAX_RETRIES = 3;
 const HEADLESS_DEFAULT = true;
-const SUPPORTED_EXTENSIONS = /\.(jpe?g|png|heic|heif|gif|tiff?|dng|webp|mp4|mov|avi|mpe?g|m4v|3gp|zip|tar|t?gz|rar|7z)$/i;
+const SUPPORTED_VIDEO_EXTENSIONS = /\.(mp4|mov|m4v|mpg|mpeg|mpe|mp2|mpv|avi|mkv|webm)$/i;
 
 function sha256File(filePath) {
   const hash = crypto.createHash('sha256');
@@ -198,6 +200,131 @@ async function openICloudPhotos(page, interactive) {
     // Wait a bit for UI to stabilize
     await new Promise(resolve => setTimeout(resolve, 2000));
   }
+}
+
+async function waitForManualConfirmation(message) {
+  try {
+    const rl = readline.createInterface({ input, output });
+    await rl.question(`${message}\n`);
+    rl.close();
+  } catch (error) {
+    console.log('Could not prompt for keyboard confirmation automatically:', error.message);
+    console.log('Waiting for Ctrl+C instead.');
+    await new Promise(resolve => {
+      const handler = () => {
+        process.off('SIGINT', handler);
+        resolve();
+      };
+      process.on('SIGINT', handler);
+    });
+  }
+}
+
+async function diagnoseUploadControls(page) {
+  console.log('--- Upload control diagnostics ---');
+
+  const probeSelectors = new Set([
+    'pierce/ui-button.UploadButton',
+    'pierce/ui-button[aria-label="Upload"]',
+    'pierce/ui-toolbar-button[name="upload"]',
+    'pierce/[data-testid="upload-button"]',
+    'pierce/button[aria-label="Upload"]',
+    'pierce/button[data-testid*="upload"]',
+    ...(selectors?.uploadButtonSelectors ?? []),
+    'pierce/input[type="file"][multiple]',
+    'pierce/input[type="file"]',
+    'input[type="file"]'
+  ]);
+
+  for (const selector of probeSelectors) {
+    try {
+      const handle = await page.$(selector);
+      if (!handle) {
+        console.log(`❌ ${selector} — not found`);
+        continue;
+      }
+
+      const info = await handle.evaluate(el => ({
+        tag: el.tagName,
+        id: el.id || null,
+        classes: el.className || null,
+        ariaLabel: el.getAttribute('aria-label'),
+        title: el.getAttribute('title'),
+        text: (el.innerText || '').trim() || null,
+        outerHTML: (el.outerHTML || '').slice(0, 280)
+      }));
+      const visible = await handle.evaluate(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+      console.log(`✅ ${selector} — tag=${info.tag} visible=${visible}`);
+      if (info.id) console.log(`    id=${info.id}`);
+      if (info.classes) console.log(`    class=${info.classes}`);
+      if (info.ariaLabel) console.log(`    aria-label=${info.ariaLabel}`);
+      if (info.title) console.log(`    title=${info.title}`);
+      if (info.text) console.log(`    text=${info.text}`);
+      console.log(`    snippet=${info.outerHTML}`);
+      await handle.dispose();
+    } catch (error) {
+      console.log(`⚠️ ${selector} — error: ${error.message}`);
+    }
+  }
+
+  try {
+    const fileInputs = await page.evaluate(() => {
+      const results = [];
+      const queue = [];
+      const visited = new WeakSet();
+      if (typeof document !== 'undefined') {
+        queue.push(document);
+      }
+
+      while (queue.length) {
+        const node = queue.shift();
+        if (!node || visited.has(node)) continue;
+        visited.add(node);
+
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node;
+          if (el.tagName === 'INPUT' && el.type === 'file') {
+            results.push({
+              multiple: !!el.multiple,
+              accept: el.getAttribute('accept'),
+              id: el.id || null,
+              classes: el.className || null,
+              ariaLabel: el.getAttribute('aria-label'),
+              snippet: (el.outerHTML || '').slice(0, 280)
+            });
+          }
+          if (el.children && el.children.length) {
+            queue.push(...Array.from(el.children));
+          }
+          if (el.shadowRoot) {
+            queue.push(el.shadowRoot);
+          }
+        } else if ((typeof Document !== 'undefined' && node instanceof Document) ||
+                   (typeof ShadowRoot !== 'undefined' && node instanceof ShadowRoot)) {
+          queue.push(...Array.from(node.children || []));
+        }
+      }
+
+      return results;
+    });
+
+    if (fileInputs.length) {
+      console.log('Discovered file inputs:');
+      fileInputs.forEach((inputInfo, index) => {
+        console.log(`  [${index}] multiple=${inputInfo.multiple} accept=${inputInfo.accept || 'any'}`);
+        if (inputInfo.id) console.log(`      id=${inputInfo.id}`);
+        if (inputInfo.classes) console.log(`      class=${inputInfo.classes}`);
+        if (inputInfo.ariaLabel) console.log(`      aria-label=${inputInfo.ariaLabel}`);
+        console.log(`      snippet=${inputInfo.snippet}`);
+      });
+    } else {
+      console.log('No <input type="file"> elements discovered during traversal.');
+    }
+  } catch (error) {
+    console.log('File input traversal failed:', error.message);
+  }
+
+  console.log('--- End of diagnostics ---');
 }
 
 async function locateUploadButton(page) {
@@ -378,6 +505,7 @@ async function findFileInputAndUpload(page, files) {
 
 async function processBatch(dir, options) {
   const interactive = options.interactive || false;
+  const inspectUpload = options.inspectUpload || false;
   const headless = (options.headless === undefined)
     ? (interactive ? false : HEADLESS_DEFAULT)
     : options.headless;
@@ -414,17 +542,28 @@ async function processBatch(dir, options) {
   // after navigation to photos, wait for UI
   await new Promise(resolve => setTimeout(resolve, 3000));
 
+  if (inspectUpload) {
+    await diagnoseUploadControls(page);
+    await saveCookies(page);
+    if (interactive) {
+      await waitForManualConfirmation('Diagnostics complete. Press ENTER when you are done inspecting the Photos UI.');
+    }
+    await browser.close();
+    console.log('Inspection finished. No files were uploaded.');
+    return;
+  }
+
   // Load ledger (uploaded hashes)
   const ledger = await loadLedger();
 
   // find files in dir
   const dirEntries = await fs.readdir(dir, { withFileTypes: true });
   const files = dirEntries
-    .filter(entry => entry.isFile() && SUPPORTED_EXTENSIONS.test(entry.name))
+    .filter(entry => entry.isFile() && SUPPORTED_VIDEO_EXTENSIONS.test(entry.name))
     .map(entry => path.join(dir, entry.name));
 
   if (!files.length) {
-    console.log('No files to upload.');
+    console.log('No video files to upload.');
     await browser.close();
     return;
   }
@@ -517,18 +656,27 @@ async function main() {
     if (argv[i] === '--dir') args.dir = argv[++i];
     else if (argv[i] === '--interactive') args.interactive = true;
     else if (argv[i] === '--headless') args.headless = argv[++i] === 'true';
+    else if (argv[i] === '--inspect-upload') args.inspectUpload = true;
     else if (argv[i] === '--help') { console.log('Usage: node upload_icloud.js --dir /path/to/dir [--interactive]'); return; }
   }
   if (!args.dir) {
     console.error('Missing --dir argument. Example: --dir /home/user/uploads/incoming');
     return;
   }
+
+  if (args.inspectUpload && args.headless === undefined) {
+    args.headless = false;
+  }
   // Ensure directories for result movement exist
   fs.ensureDirSync(path.join(args.dir, '..', 'uploaded'));
   fs.ensureDirSync(path.join(args.dir, '..', 'failed'));
   fs.ensureDirSync(path.join(args.dir, '..', 'skipped'));
 
-  await processBatch(args.dir, { interactive: !!args.interactive, headless: args.headless });
+  await processBatch(args.dir, {
+    interactive: !!args.interactive,
+    headless: args.headless,
+    inspectUpload: !!args.inspectUpload
+  });
 }
 
 main().catch(err => {

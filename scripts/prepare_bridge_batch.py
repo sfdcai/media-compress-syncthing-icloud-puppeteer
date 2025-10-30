@@ -33,10 +33,19 @@ except ImportError:  # pragma: no cover - fallback for direct execution
 MAX_PROCESSING_SIZE_GB = int(os.getenv("MAX_PROCESSING_SIZE_GB", 5))
 MAX_PROCESSING_FILES = int(os.getenv("MAX_PROCESSING_FILES", 500))
 
+DEFAULT_MEDIA_EXTENSIONS = {
+    '.jpg', '.jpeg', '.png', '.heic', '.heif', '.mp4', '.mov', '.avi', '.mkv'
+}
+
+VIDEO_MEDIA_EXTENSIONS = {
+    '.mp4', '.mov', '.m4v', '.mpg', '.mpeg', '.mpe', '.mp2', '.mpv', '.avi', '.mkv', '.webm'
+}
+
+
 def get_media_files(directory, extensions=None):
     """Get all media files from directory"""
     if extensions is None:
-        extensions = {'.jpg', '.jpeg', '.png', '.heic', '.heif', '.mp4', '.mov', '.avi', '.mkv'}
+        extensions = DEFAULT_MEDIA_EXTENSIONS
     
     media_files = []
     for root, dirs, files in os.walk(directory):
@@ -99,7 +108,7 @@ def copy_files_to_bridge(files, bridge_dir, batch_type):
         log_step("file_copy", f"Failed to copy files to bridge: {e}", "error")
         return None, 0, 0
 
-def prepare_files_for_type(source_dir, bridge_dir, batch_type, use_compressed=False):
+def prepare_files_for_type(source_dir, bridge_dir, batch_type, extensions=None):
     """Prepare files for a specific upload type (simplified - no numbered batches)"""
     if not os.path.exists(source_dir):
         log_step("file_preparation", f"Source directory {source_dir} does not exist", "error")
@@ -118,7 +127,7 @@ def prepare_files_for_type(source_dir, bridge_dir, batch_type, use_compressed=Fa
     log_step("file_preparation", f"Preparing files for {batch_type} from {source_dir}", "info")
     
     # Get all media files
-    media_files = get_media_files(source_dir)
+    media_files = get_media_files(source_dir, extensions=extensions)
     
     if not media_files:
         log_step("file_preparation", f"No media files found in {source_dir}", "info")
@@ -166,8 +175,13 @@ def main():
         else:
             source_dir = originals_dir
             log_step("file_preparation", "Using original files for iCloud upload", "info")
-        
-        if not prepare_files_for_type(source_dir, bridge_icloud_dir, "icloud"):
+
+        if not prepare_files_for_type(
+            source_dir,
+            bridge_icloud_dir,
+            "icloud",
+            extensions=VIDEO_MEDIA_EXTENSIONS,
+        ):
             success = False
     
     # Prepare files for Pixel (always use original files)
