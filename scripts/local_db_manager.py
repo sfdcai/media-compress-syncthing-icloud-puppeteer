@@ -374,3 +374,21 @@ def update_media_status_local(
         supabase_id=supabase_id,
         synced=synced,
     )
+
+
+def media_hash_exists(file_hash: Optional[str]) -> bool:
+    """Return ``True`` when a media record already tracks ``file_hash`` locally."""
+
+    if not file_hash:
+        return False
+
+    try:
+        with get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT 1 FROM media_files WHERE file_hash = ? LIMIT 1",
+                (file_hash,),
+            )
+            return cursor.fetchone() is not None
+    except sqlite3.DatabaseError as exc:
+        logger.error("Failed to check media hash existence for %s: %s", file_hash, exc)
+        return False

@@ -9,10 +9,24 @@ import sys
 import shutil
 import time
 from pathlib import Path
-from utils import (
-    log_step, get_feature_toggle, ensure_directory_exists,
-    update_batch_status, get_files_by_status, retry
-)
+try:  # Support execution both via package and standalone script
+    from .utils import (
+        log_step,
+        get_feature_toggle,
+        ensure_directory_exists,
+        update_batch_status,
+        get_files_by_status,
+        retry,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        get_feature_toggle,
+        ensure_directory_exists,
+        update_batch_status,
+        get_files_by_status,
+        retry,
+    )
 
 def get_files_in_bridge(bridge_dir):
     """Get all files in bridge directory (no numbered batch folders)"""

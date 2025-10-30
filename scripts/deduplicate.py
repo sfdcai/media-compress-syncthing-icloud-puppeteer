@@ -8,12 +8,30 @@ import os
 import sys
 import shutil
 from pathlib import Path
-from utils import (
-    log_step, calculate_file_hash, get_file_size_gb,
-    ensure_directory_exists, is_duplicate_file,
-    log_duplicate_file, get_feature_toggle, retry,
-    create_media_file_record
-)
+try:  # Allow execution both as module and standalone script
+    from .utils import (
+        log_step,
+        calculate_file_hash,
+        get_file_size_gb,
+        ensure_directory_exists,
+        is_duplicate_file,
+        log_duplicate_file,
+        get_feature_toggle,
+        retry,
+        create_media_file_record,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        calculate_file_hash,
+        get_file_size_gb,
+        ensure_directory_exists,
+        is_duplicate_file,
+        log_duplicate_file,
+        get_feature_toggle,
+        retry,
+        create_media_file_record,
+    )
 
 def get_media_files(directory, extensions=None):
     """Get all media files from directory"""
