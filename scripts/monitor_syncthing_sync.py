@@ -10,7 +10,10 @@ import requests
 import json
 from pathlib import Path
 from dotenv import load_dotenv
-from utils import log_step, update_file_status, update_batch_status
+try:  # Allow monitor to run both inside and outside the package context
+    from .utils import log_step, update_file_status, update_batch_status
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import log_step, update_file_status, update_batch_status  # type: ignore
 
 # Load environment variables
 load_dotenv("config/settings.env")
@@ -38,10 +41,17 @@ class SyncthingMonitor:
         """Get folder statistics"""
         try:
             if folder_id:
-                response = self.session.get(f"{self.api_url}/rest/stats/folder", timeout=10)
+                response = self.session.get(
+                    f"{self.api_url}/rest/stats/folder",
+                    params={"folder": folder_id},
+                    timeout=10,
+                )
                 response.raise_for_status()
                 stats = response.json()
-                return stats.get(folder_id)
+                # API returns a dictionary keyed by folder id even when filtered
+                if isinstance(stats, dict):
+                    return stats.get(folder_id, stats)
+                return stats
             else:
                 response = self.session.get(f"{self.api_url}/rest/stats/folder", timeout=10)
                 response.raise_for_status()
@@ -70,14 +80,22 @@ class SyncthingMonitor:
             log_step("syncthing_monitor", f"Failed to get connections: {e}", "error")
             return None
     
-    def is_syncing(self, folder_id):
+    def is_syncing(self, folder_id, *, status=None):
         """Check if folder is currently syncing"""
         try:
-            status = self.get_folder_status(folder_id)
-            if status:
-                # Check if there are any items being synced
-                return status.get('inSyncBytes', 0) > 0 or status.get('needBytes', 0) > 0
-            return False
+            if status is None:
+                status = self.get_folder_status(folder_id)
+            if not status:
+                return False
+
+            state = str(status.get('state', '')).lower()
+            need_bytes = status.get('needBytes', 0) or 0
+            need_files = status.get('needFiles', 0) or 0
+
+            if state in {"syncing", "scanning", "cleaning"}:
+                return True
+
+            return need_bytes > 0 or need_files > 0
         except Exception as e:
             log_step("syncthing_monitor", f"Error checking sync status: {e}", "error")
             return False
@@ -88,13 +106,27 @@ class SyncthingMonitor:
         
         start_time = time.time()
         while time.time() - start_time < timeout:
-            if not self.is_syncing(folder_id):
+            status = self.get_folder_status(folder_id)
+            if not status:
+                log_step("syncthing_monitor", "Unable to fetch folder status during wait", "warning")
+                time.sleep(check_interval)
+                continue
+
+            if not self.is_syncing(folder_id, status=status):
                 log_step("syncthing_monitor", "Sync completed", "success")
                 return True
-            
+
+            need_bytes = status.get('needBytes', 0)
+            need_files = status.get('needFiles', 0)
+            state = status.get('state', 'unknown')
+
             time.sleep(check_interval)
             elapsed = int(time.time() - start_time)
-            log_step("syncthing_monitor", f"Still syncing... ({elapsed}s elapsed)", "info")
+            log_step(
+                "syncthing_monitor",
+                f"Still syncing... state={state}, remaining={need_files} files / {need_bytes} bytes ({elapsed}s elapsed)",
+                "info",
+            )
         
         log_step("syncthing_monitor", "Sync timeout reached", "warning")
         return False
@@ -156,17 +188,22 @@ def monitor_pixel_sync():
     folder_status = monitor.get_folder_status(pixel_folder_id)
     
     if folder_status:
-        is_syncing = monitor.is_syncing(pixel_folder_id)
-        print(f"✓ Sync status: {'Syncing' if is_syncing else 'Idle'}")
-        
+        current_state = folder_status.get('state', 'unknown')
+        need_bytes = folder_status.get('needBytes', 0)
+        need_files = folder_status.get('needFiles', 0)
+        is_syncing = monitor.is_syncing(pixel_folder_id, status=folder_status)
+
+        print(f"✓ Sync status: {'Syncing' if is_syncing else 'Idle'} (state: {current_state})")
+
         if is_syncing:
-            print(f"  - Bytes to sync: {folder_status.get('needBytes', 0)}")
-            print(f"  - Bytes in sync: {folder_status.get('inSyncBytes', 0)}")
-            
+            print(f"  - Bytes remaining: {need_bytes}")
+            print(f"  - Files remaining: {need_files}")
+            print(f"  - Total bytes in sync: {folder_status.get('inSyncBytes', 0)}")
+
             # Wait for sync completion
             print("\nStep 5: Waiting for sync completion...")
             sync_completed = monitor.wait_for_sync_completion(pixel_folder_id, timeout=300)
-            
+
             if sync_completed:
                 print("✓ Sync completed successfully")
                 return True
@@ -174,7 +211,10 @@ def monitor_pixel_sync():
                 print("⚠ Sync did not complete within timeout")
                 return False
         else:
-            print("✓ No active sync in progress")
+            if need_bytes or need_files:
+                print(f"⚠ Syncthing reports idle but {need_files} files / {need_bytes} bytes remain")
+            else:
+                print("✓ No active sync in progress")
             return True
     else:
         print("✗ Could not get folder status")
