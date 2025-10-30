@@ -1,0 +1,17 @@
+{"timestamp": "2025-10-02T22:43:48.837855", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Connected to PostgreSQL at localhost:5432", "status": "info"}}
+{"timestamp": "2025-10-02T22:43:48.838090", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Local PostgreSQL database manager initialized", "status": "info"}}
+{"timestamp": "2025-10-02T22:43:48.855986", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Logged pipeline step: test - info", "status": "debug"}}
+{"timestamp": "2025-10-02T22:43:48.858534", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Created 2FA request: test_request_123", "status": "debug"}}
+{"timestamp": "2025-10-02T22:43:48.860913", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Logged Telegram notification: test", "status": "debug"}}
+{"timestamp": "2025-10-02T22:43:48.862928", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Logged cache metrics: test - 66.67% hit rate", "status": "debug"}}
+{"timestamp": "2025-10-02T22:43:48.864796", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Logged pipeline metric: test_metric = 100.0", "status": "debug"}}
+{"timestamp": "2025-10-02T22:44:10.371913", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Connected to PostgreSQL at localhost:5432", "status": "info"}}
+{"timestamp": "2025-10-02T22:44:10.372120", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Local PostgreSQL database manager initialized", "status": "info"}}
+{"timestamp": "2025-10-02T22:44:10.385557", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "supabase_sync", "message": "Supabase sync process initialized", "status": "info"}}
+{"timestamp": "2025-10-02T22:44:15.993810", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Connected to PostgreSQL at localhost:5432", "status": "info"}}
+{"timestamp": "2025-10-02T22:44:15.994009", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Local PostgreSQL database manager initialized", "status": "info"}}
+{"timestamp": "2025-10-02T22:44:16.008444", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "supabase_sync", "message": "Supabase sync process initialized", "status": "info"}}
+{"timestamp": "2025-10-02T22:44:39.924242", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Connected to PostgreSQL at localhost:5432", "status": "info"}}
+{"timestamp": "2025-10-02T22:44:39.924508", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "local_db_manager", "message": "Local PostgreSQL database manager initialized", "status": "info"}}
+{"timestamp": "2025-10-02T22:44:39.938589", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "supabase_sync", "message": "Supabase sync process initialized", "status": "info"}}
+{"timestamp": "2025-10-02T22:44:40.246026", "type": "post", "endpoint": "pipeline_logs", "data": {"step": "supabase_sync", "message": "Supabase API error for pipeline_logs: 400 - {\"code\":\"PGRST204\",\"details\":null,\"hint\":null,\"message\":\"Could not find the 'last_sync_attempt' column of 'pipeline_logs' in the schema cache\"}", "status": "error"}}

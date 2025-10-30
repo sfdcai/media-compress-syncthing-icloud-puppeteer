@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Pipeline Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-cloud-upload-alt me-2"></i>
+                Media Pipeline Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <button class="btn btn-outline-light btn-sm me-3" onclick="toggleTheme()" id="theme-toggle">
+                    <i class="fas fa-moon" id="theme-icon"></i>
+                </button>
+                <span class="navbar-text">
+                    <i class="fas fa-circle text-success me-1" id="status-indicator"></i>
+                    <span id="status-text">System Online</span>
+                    <span class="badge bg-primary ms-2" id="realtime-indicator" style="display: none;">
+                        <i class="fas fa-broadcast-tower me-1"></i>
+                        Live
+                    </span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- System Status Overview -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center" data-bs-toggle="collapse" data-bs-target="#systemStatusCollapse" aria-expanded="true" aria-controls="systemStatusCollapse" style="cursor: pointer;">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            <i class="fas fa-server me-2"></i>
+                            System Status Overview
+                            <i class="fas fa-chevron-down ms-2 collapse-icon"></i>
+                        </h5>
+                        <button class="btn btn-outline-primary btn-sm" onclick="refreshStatus(); event.stopPropagation();">
+                            <i class="fas fa-sync-alt me-1"></i>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="collapse show" id="systemStatusCollapse">
+                    <div class="card-body">
+                        <div class="row" id="status-cards">
+                            <!-- Status cards will be populated by JavaScript -->
+                        </div>
+                        
+                        <!-- Database Status Section -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="card border-info">
+                                    <div class="card-header bg-info text-white">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-database me-2"></i>
+                                            Database Connection Status
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row" id="database-status-cards">
+                                            <!-- Database status cards will be populated by JavaScript -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Tabs -->
+        <div class="row">
+            <div class="col-12">
+                <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" role="tab">
+                            <i class="fas fa-tachometer-alt me-1"></i>
+                            Dashboard
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="pipeline-tab" data-bs-toggle="tab" data-bs-target="#pipeline" type="button" role="tab">
+                            <i class="fas fa-cogs me-1"></i>
+                            Pipeline Control
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab">
+                            <i class="fas fa-cog me-1"></i>
+                            Configuration
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button" role="tab">
+                            <i class="fas fa-file-alt me-1"></i>
+                            Logs
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="troubleshoot-tab" data-bs-toggle="tab" data-bs-target="#troubleshoot" type="button" role="tab">
+                            <i class="fas fa-tools me-1"></i>
+                            Troubleshooting
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics" type="button" role="tab" onclick="dashboard.loadAnalytics()">
+                            <i class="fas fa-chart-bar me-1"></i>
+                            Analytics
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="services-tab" data-bs-toggle="tab" data-bs-target="#services" type="button" role="tab">
+                            <i class="fas fa-server me-1"></i>
+                            Services
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="docs-tab" data-bs-toggle="tab" data-bs-target="#docs" type="button" role="tab" onclick="loadDocumentation()">
+                            <i class="fas fa-book me-1"></i>
+                            Documentation
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="readme-tab" data-bs-toggle="tab" data-bs-target="#readme" type="button" role="tab">
+                            <i class="fas fa-book me-1"></i>
+                            README
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="mainTabsContent">
+                    <!-- Dashboard Tab -->
+                    <div class="tab-pane fade show active" id="dashboard" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-chart-bar me-2"></i>
+                                    <i class="fas fa-analytics me-2"></i>
+                                    Quick Stats Summary
+                                </h5>
+                                <p class="text-muted">Overview of current pipeline status. For detailed analytics, visit the Analytics tab.</p>
+                                <div class="row" id="stats-cards">
+                                    <!-- Statistics cards will be populated by JavaScript -->
+                                </div>
+                                <div class="text-center mt-3">
+                                    <a href="#analytics" class="btn btn-outline-primary" onclick="document.getElementById('analytics-tab').click()">
+                                        <i class="fas fa-chart-bar me-1"></i>
+                                        View Detailed Analytics
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-history me-2"></i>
+                                    <i class="fas fa-clock me-2"></i>
+                                    Recent Activity
+                                </h5>
+                                <div id="recent-activity">
+                                    <!-- Recent activity will be populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pipeline Control Tab -->
+                    <div class="tab-pane fade" id="pipeline" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-play-circle me-2"></i>
+                                    <i class="fas fa-cogs me-2"></i>
+                                    Manual Pipeline Execution
+                                </h5>
+                                <p class="text-muted">Run individual pipeline steps or the complete pipeline manually.</p>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Individual Steps</h6>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-primary" onclick="runStep('download')">
+                                                <i class="fas fa-download me-1"></i>
+                                                Download from iCloud
+                                            </button>
+                                            <button class="btn btn-outline-primary" onclick="runStep('deduplicate')">
+                                                <i class="fas fa-copy me-1"></i>
+                                                Deduplicate Files
+                                            </button>
+                                            <button class="btn btn-outline-primary" onclick="runStep('compress')">
+                                                <i class="fas fa-compress me-1"></i>
+                                                Compress Media
+                                            </button>
+                                            <button class="btn btn-outline-primary" onclick="runStep('prepare')">
+                                                <i class="fas fa-folder-open me-1"></i>
+                                                Prepare Files
+                                            </button>
+                                            <button class="btn btn-outline-primary" onclick="runStep('upload_icloud')">
+                                                <i class="fas fa-cloud-upload-alt me-1"></i>
+                                                Upload to iCloud
+                                            </button>
+                                            <button class="btn btn-outline-primary" onclick="runStep('upload_pixel')">
+                                                <i class="fas fa-sync me-1"></i>
+                                                Sync to Pixel
+                                            </button>
+                                            <button class="btn btn-outline-primary" onclick="runStep('sort')">
+                                                <i class="fas fa-sort me-1"></i>
+                                                Sort Files
+                                            </button>
+                                            <button class="btn btn-outline-primary" onclick="runStep('cleanup')">
+                                                <i class="fas fa-trash me-1"></i>
+                                                Cleanup
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Full Pipeline</h6>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-success btn-lg" onclick="runFullPipeline()">
+                                                <i class="fas fa-play me-2"></i>
+                                                Run Complete Pipeline
+                                            </button>
+                                            <button class="btn btn-warning" onclick="runHealthCheck()">
+                                                <i class="fas fa-heartbeat me-1"></i>
+                                                Run Health Check
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-server me-2"></i>
+                                    Service Management
+                                </h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Media Pipeline Service</h6>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-success" onclick="serviceAction('media-pipeline', 'start')">
+                                                <i class="fas fa-play me-1"></i>
+                                                Start Service
+                                            </button>
+                                            <button class="btn btn-warning" onclick="serviceAction('media-pipeline', 'stop')">
+                                                <i class="fas fa-stop me-1"></i>
+                                                Stop Service
+                                            </button>
+                                            <button class="btn btn-info" onclick="serviceAction('media-pipeline', 'restart')">
+                                                <i class="fas fa-redo me-1"></i>
+                                                Restart Service
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Syncthing Service</h6>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-success" onclick="serviceAction('syncthing@root', 'start')">
+                                                <i class="fas fa-play me-1"></i>
+                                                Start Syncthing
+                                            </button>
+                                            <button class="btn btn-warning" onclick="serviceAction('syncthing@root', 'stop')">
+                                                <i class="fas fa-stop me-1"></i>
+                                                Stop Syncthing
+                                            </button>
+                                            <button class="btn btn-info" onclick="serviceAction('syncthing@root', 'restart')">
+                                                <i class="fas fa-redo me-1"></i>
+                                                Restart Syncthing
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Configuration Tab -->
+                    <div class="tab-pane fade" id="config" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-toggle-on me-2"></i>
+                                    Feature Toggles
+                                </h5>
+                                <div class="row" id="feature-toggles">
+                                    <!-- Feature toggles will be populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- Telegram Bot Management -->
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-robot me-2"></i>
+                                    Telegram Bot Management
+                                </h5>
+                                <p class="text-muted">Manage Telegram bot for 2FA authentication and notifications.</p>
+                                
+                                <!-- Status Display -->
+                                <div class="alert alert-info mb-3" id="telegram-current-status">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Current Status:</strong> <span id="telegram-status-text">Loading...</span>
+                                </div>
+                                
+                                <!-- Telegram Actions -->
+                                <div class="mb-3">
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-primary" onclick="testTelegramBot()">
+                                            <i class="fas fa-paper-plane me-1"></i>
+                                            Test Bot
+                                        </button>
+                                        <button class="btn btn-outline-primary" onclick="sendTelegramStatus()">
+                                            <i class="fas fa-chart-line me-1"></i>
+                                            Send Status
+                                        </button>
+                                        <button class="btn btn-outline-success" onclick="sendTelegramSummary()">
+                                            <i class="fas fa-calendar-day me-1"></i>
+                                            Daily Summary
+                                        </button>
+                                        <button class="btn btn-outline-warning" onclick="checkTelegramStatus()">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Check Status
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Status Messages -->
+                                <div id="telegram-status" class="alert" style="display: none;"></div>
+                            </div>
+                        </div>
+
+
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-key me-2"></i>
+                                    Credentials & Settings
+                                </h5>
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Configuration:</strong> All settings are shown below. Telegram settings are configured here and managed above.
+                                </div>
+                                <div id="config-display">
+                                    <!-- Configuration will be populated by JavaScript -->
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-outline-secondary" onclick="reloadConfig()">
+                                        <i class="fas fa-sync me-1"></i>
+                                        Reload Configuration
+                                    </button>
+                                    <button class="btn btn-outline-info" onclick="showInlineEditor()">
+                                        <i class="fas fa-keyboard me-1"></i>
+                                        Quick Edit
+                                    </button>
+                                </div>
+                                
+                                <!-- Quick Configuration Editor -->
+                                <div id="inline-editor" class="mt-3" style="display: none;">
+                                    <div class="card border-primary">
+                                        <div class="card-header bg-primary text-white">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-edit me-2"></i>
+                                                Quick Configuration Editor
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="alert alert-info">
+                                                <i class="fas fa-info-circle me-2"></i>
+                                                <strong>Quick Edit:</strong> Enter a configuration key and new value to update settings directly.
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <label for="config-key" class="form-label">Configuration Key</label>
+                                                    <input type="text" class="form-control" id="config-key" placeholder="e.g., JPEG_QUALITY, TELEGRAM_BOT_TOKEN">
+                                                    <div class="form-text">Enter the exact key name from the configuration</div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label for="config-value" class="form-label">New Value</label>
+                                                    <input type="text" class="form-control" id="config-value" placeholder="e.g., 85, your_bot_token">
+                                                    <div class="form-text">Enter the new value for this setting</div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-3">
+                                                <button class="btn btn-success" onclick="updateConfigValue()">
+                                                    <i class="fas fa-save me-1"></i>
+                                                    Update Configuration
+                                                </button>
+                                                <button class="btn btn-outline-secondary" onclick="hideInlineEditor()">
+                                                    <i class="fas fa-times me-1"></i>
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                            <div class="mt-3">
+                                                <small class="text-muted">
+                                                    <strong>Common Keys:</strong> TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, JPEG_QUALITY, VIDEO_CRF, MAX_PROCESSING_SIZE_GB
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                <!-- Logs Tab -->
+                    <div class="tab-pane fade" id="logs" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-file-alt me-2"></i>
+                                    Log Viewer
+                                </h5>
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <select class="form-select" id="log-type">
+                                            <option value="pipeline">Pipeline Log</option>
+                                            <option value="system">System Log</option>
+                                            <option value="syncthing">Syncthing Log</option>
+                                            <option value="error">Error Log</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="number" class="form-control" id="log-lines" placeholder="Lines to show" value="100">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button class="btn btn-primary" onclick="loadLogs()">
+                                            <i class="fas fa-sync me-1"></i>
+                                            Load Logs
+                                        </button>
+                                        <button class="btn btn-outline-secondary" onclick="clearLogs()">
+                                            <i class="fas fa-trash me-1"></i>
+                                            Clear
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="log-container">
+                                    <pre id="log-content" class="log-content"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Troubleshooting Tab -->
+                    <div class="tab-pane fade" id="troubleshoot" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-stethoscope me-2"></i>
+                                    System Diagnostics
+                                </h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Quick Diagnostics</h6>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-info" onclick="runDiagnostic('health')">
+                                                <i class="fas fa-heartbeat me-1"></i>
+                                                Health Check
+                                            </button>
+                                            <button class="btn btn-info" onclick="runDiagnostic('permissions')">
+                                                <i class="fas fa-shield-alt me-1"></i>
+                                                Check Permissions
+                                            </button>
+                                            <button class="btn btn-info" onclick="runDiagnostic('services')">
+                                                <i class="fas fa-server me-1"></i>
+                                                Check Services
+                                            </button>
+                                            <button class="btn btn-info" onclick="runDiagnostic('dependencies')">
+                                                <i class="fas fa-box me-1"></i>
+                                                Check Dependencies
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Auto-Fix Tools</h6>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-warning" onclick="runAutoFix('permissions')">
+                                                <i class="fas fa-wrench me-1"></i>
+                                                Fix Permissions
+                                            </button>
+                                            <button class="btn btn-warning" onclick="runAutoFix('environment')">
+                                                <i class="fas fa-cog me-1"></i>
+                                                Fix Environment
+                                            </button>
+                                            <button class="btn btn-warning" onclick="runAutoFix('services')">
+                                                <i class="fas fa-tools me-1"></i>
+                                                Fix Services
+                                            </button>
+                                            <button class="btn btn-danger" onclick="runAutoFix('all')">
+                                                <i class="fas fa-magic me-1"></i>
+                                                Fix All Issues
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-question-circle me-2"></i>
+                                    Common Issues & Solutions
+                                </h5>
+                                <div id="troubleshooting-guide">
+                                    <!-- Troubleshooting guide will be populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analytics Tab -->
+                    <div class="tab-pane fade" id="analytics" role="tabpanel">
+                        <!-- Media Sources Status -->
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-cloud me-2"></i>
+                                    Media Sources Status
+                                </h5>
+                                <p class="text-muted">Monitor active media sources and their processing status.</p>
+                                
+                                <div id="sources-status-display">
+                                    <!-- Sources status will be populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <!-- Performance Metrics -->
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-tachometer-alt me-2"></i>
+                                    Performance Metrics
+                                </h5>
+                                <div class="row" id="performance-metrics">
+                                    <div class="col-12 text-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading performance metrics...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Processing Statistics -->
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-chart-line me-2"></i>
+                                    Processing Statistics
+                                </h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2">Loading processing chart...</p>
+                                        </div>
+                                        <canvas id="processing-chart" width="400" height="200" style="display: none;"></canvas>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2">Loading storage chart...</p>
+                                        </div>
+                                        <canvas id="storage-chart" width="400" height="200" style="display: none;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- System Health -->
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-heartbeat me-2"></i>
+                                    System Health
+                                </h5>
+                                <div id="health-metrics">
+                                    <!-- Health metrics will be populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Services Tab -->
+                    <div class="tab-pane fade" id="services" role="tabpanel">
+                        <!-- Service Links -->
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-server me-2"></i>
+                                    Pipeline Services & Tools
+                                </h5>
+                                <p class="text-muted">Quick access to all services and tools used in the media pipeline system.</p>
+                                
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h6 class="card-title">
+                                                    <i class="fas fa-database text-primary me-2"></i>
+                                                    Database Management
+                                                </h6>
+                                                <p class="card-text small">Professional PostgreSQL database administration</p>
+                                                <a href="http://192.168.1.7/pgadmin4" target="_blank" class="btn btn-primary btn-sm">
+                                                    <i class="fas fa-external-link-alt me-1"></i>
+                                                    pgAdmin4
+                                                </a>
+                                                <a href="/database_admin.html" target="_blank" class="btn btn-success btn-sm">
+                                                    <i class="fas fa-database me-1"></i>
+                                                    Database Admin
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h6 class="card-title">
+                                                    <i class="fas fa-sync text-success me-2"></i>
+                                                    File Synchronization
+                                                </h6>
+                                                <p class="card-text small">Syncthing file synchronization service</p>
+                                                <a href="http://192.168.1.7:8384" target="_blank" class="btn btn-success btn-sm">
+                                                    <i class="fas fa-external-link-alt me-1"></i>
+                                                    Syncthing Web UI
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h6 class="card-title">
+                                                    <i class="fas fa-cloud text-info me-2"></i>
+                                                    iCloud Integration
+                                                </h6>
+                                                <p class="card-text small">iCloud Photos download and management</p>
+                                                <button class="btn btn-info btn-sm" onclick="dashboard.testIcloudConnection()">
+                                                    <i class="fas fa-test-tube me-1"></i>
+                                                    Test Connection
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h6 class="card-title">
+                                                    <i class="fas fa-robot text-warning me-2"></i>
+                                                    Telegram Bot
+                                                </h6>
+                                                <p class="card-text small">2FA authentication and notifications</p>
+                                                <button class="btn btn-warning btn-sm" onclick="dashboard.testTelegramBot()">
+                                                    <i class="fas fa-paper-plane me-1"></i>
+                                                    Test Bot
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Local Database Management -->
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-database me-2"></i>
+                                    Local Database Management
+                                </h5>
+                                <p class="text-muted">Monitor local PostgreSQL database and sync status to Supabase. All writes go to local DB first, then sync to Supabase.</p>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <h6>Cache Statistics</h6>
+                                            <div id="cache-stats">
+                                                <div class="text-muted">Loading cache statistics...</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <h6>Cache Actions</h6>
+                                            <button class="btn btn-outline-primary me-2" onclick="refreshCacheStats()">
+                                                <i class="fas fa-sync me-1"></i>
+                                                Refresh Stats
+                                            </button>
+                                            <button class="btn btn-outline-warning me-2" onclick="optimizeCache()">
+                                                <i class="fas fa-magic me-1"></i>
+                                                Optimize Cache
+                                            </button>
+                                            <button class="btn btn-outline-danger" onclick="clearCache()">
+                                                <i class="fas fa-trash me-1"></i>
+                                                Clear Cache
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-3">
+                                    <div class="col-md-12">
+                                        <h6>PostgreSQL Database Information</h6>
+                                        <div id="redis-info">
+                                            <div class="text-muted">Loading database information...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="cache-status" class="alert" style="display: none;"></div>
+                            </div>
+                        </div>
+
+                        <!-- System Services Status -->
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-cogs me-2"></i>
+                                    System Services Status
+                                </h5>
+                                <div id="services-status">
+                                    <div class="text-muted">Loading services status...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Documentation Tab -->
+                    <div class="tab-pane fade" id="docs" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-book me-2"></i>
+                                    Project Documentation
+                                </h5>
+                                <button class="btn btn-outline-primary btn-sm" onclick="loadDocumentation()">
+                                    <i class="fas fa-sync-alt me-1"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <h6><i class="fas fa-list me-2"></i>Available Documents</h6>
+                                        <div id="docs-list" class="list-group">
+                                            <div class="text-muted">Loading documentation files...</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <h6><i class="fas fa-file-alt me-2"></i>Document Viewer</h6>
+                                        <div id="docs-viewer" class="border rounded p-3" style="height: 600px; overflow-y: auto;">
+                                            <div class="text-muted text-center">
+                                                <i class="fas fa-book fa-3x mb-3"></i>
+                                                <p>Select a document from the list to view its content</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- README Tab -->
+                    <div class="tab-pane fade" id="readme" role="tabpanel">
+                        <div class="card mt-3">
+                            <div class="card-body">
+                                <h5 class="card-title">
+                                    <i class="fas fa-book me-2"></i>
+                                    Media Pipeline Web Dashboard - README
+                                </h5>
+                                <div id="readme-content">
+                                    <!-- README content will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Modal -->
+    <div class="modal fade" id="progressModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="progressTitle">Processing...</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="progress mb-3">
+                        <div class="progress-bar" role="progressbar" style="width: 0%" id="progressBar"></div>
+                    </div>
+                    <div id="progressText">Starting...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Container -->
+    <div id="alert-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1050;"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

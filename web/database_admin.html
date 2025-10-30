@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Admin - Media Pipeline</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .status-card {
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .error-card {
+            background: #ffe8e8;
+            border: 1px solid #f44336;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗄️ Database Administration - Media Pipeline</h1>
+        
+        <div class="status-card">
+            <h3>✅ Database Connection Status</h3>
+            <p><strong>PostgreSQL Version:</strong> <span id="db-version">Loading...</span></p>
+            <p><strong>Database:</strong> media_pipeline</p>
+            <p><strong>Host:</strong> localhost:5432</p>
+            <p><strong>Last Checked:</strong> <span id="last-checked" class="timestamp">Loading...</span></p>
+        </div>
+
+        <div>
+            <h3>📊 Database Statistics</h3>
+            <button class="btn" onclick="loadDatabaseStats()">Refresh Statistics</button>
+            <div id="db-stats" class="loading">Loading database statistics...</div>
+        </div>
+
+        <div>
+            <h3>📋 Table Information</h3>
+            <button class="btn" onclick="loadTableInfo()">Refresh Table Info</button>
+            <div id="table-info" class="loading">Loading table information...</div>
+        </div>
+
+        <div>
+            <h3>🔍 Quick Queries</h3>
+            <button class="btn btn-success" onclick="runQuery('SELECT COUNT(*) as total_files FROM media_files')">Count Media Files</button>
+            <button class="btn btn-success" onclick="runQuery('SELECT COUNT(*) as total_batches FROM batches')">Count Batches</button>
+            <button class="btn btn-success" onclick="runQuery('SELECT COUNT(*) as total_logs FROM pipeline_logs')">Count Logs</button>
+            <button class="btn btn-success" onclick="runQuery('SELECT source_type, COUNT(*) as count FROM media_files GROUP BY source_type')">Files by Source</button>
+            <div id="query-results"></div>
+        </div>
+
+        <div>
+            <h3>🛠️ Database Maintenance</h3>
+            <button class="btn btn-danger" onclick="runMaintenance('VACUUM ANALYZE')">Vacuum & Analyze</button>
+            <button class="btn btn-danger" onclick="runMaintenance('REINDEX DATABASE media_pipeline')">Reindex Database</button>
+            <div id="maintenance-results"></div>
+        </div>
+    </div>
+
+    <script>
+        function updateTimestamp() {
+            document.getElementById('last-checked').textContent = new Date().toLocaleString();
+        }
+
+        function loadDatabaseStats() {
+            fetch('/api/database/stats')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let html = '<table><tr><th>Table</th><th>Count</th><th>Unsynced</th></tr>';
+                        for (const [key, value] of Object.entries(data.stats)) {
+                            if (key.includes('_count')) {
+                                const tableName = key.replace('_count', '');
+                                const unsyncedKey = tableName + '_unsynced';
+                                const unsynced = data.stats[unsyncedKey] || 0;
+                                html += `<tr><td>${tableName}</td><td>${value}</td><td>${unsynced}</td></tr>`;
+                            }
+                        }
+                        html += '</table>';
+                        document.getElementById('db-stats').innerHTML = html;
+                    } else {
+                        document.getElementById('db-stats').innerHTML = '<div class="error-card">Error loading statistics: ' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('db-stats').innerHTML = '<div class="error-card">Error: ' + error.message + '</div>';
+                });
+        }
+
+        function loadTableInfo() {
+            fetch('/api/database/tables')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let html = '<table><tr><th>Table Name</th><th>Owner</th><th>Type</th></tr>';
+                        data.tables.forEach(table => {
+                            html += `<tr><td>${table.table_name}</td><td>${table.table_owner}</td><td>${table.table_type}</td></tr>`;
+                        });
+                        html += '</table>';
+                        document.getElementById('table-info').innerHTML = html;
+                    } else {
+                        document.getElementById('table-info').innerHTML = '<div class="error-card">Error loading table info: ' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('table-info').innerHTML = '<div class="error-card">Error: ' + error.message + '</div>';
+                });
+        }
+
+        function runQuery(query) {
+            document.getElementById('query-results').innerHTML = '<div class="loading">Running query...</div>';
+            
+            fetch('/api/database/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: query })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let html = '<h4>Query: ' + query + '</h4>';
+                    if (data.results && data.results.length > 0) {
+                        html += '<table><tr>';
+                        Object.keys(data.results[0]).forEach(key => {
+                            html += '<th>' + key + '</th>';
+                        });
+                        html += '</tr>';
+                        data.results.forEach(row => {
+                            html += '<tr>';
+                            Object.values(row).forEach(value => {
+                                html += '<td>' + value + '</td>';
+                            });
+                            html += '</tr>';
+                        });
+                        html += '</table>';
+                    } else {
+                        html += '<p>No results returned.</p>';
+                    }
+                    document.getElementById('query-results').innerHTML = html;
+                } else {
+                    document.getElementById('query-results').innerHTML = '<div class="error-card">Query Error: ' + data.message + '</div>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('query-results').innerHTML = '<div class="error-card">Error: ' + error.message + '</div>';
+            });
+        }
+
+        function runMaintenance(command) {
+            document.getElementById('maintenance-results').innerHTML = '<div class="loading">Running maintenance command...</div>';
+            
+            fetch('/api/database/maintenance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ command: command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('maintenance-results').innerHTML = '<div class="status-card">✅ ' + command + ' completed successfully</div>';
+                } else {
+                    document.getElementById('maintenance-results').innerHTML = '<div class="error-card">❌ Error: ' + data.message + '</div>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('maintenance-results').innerHTML = '<div class="error-card">Error: ' + error.message + '</div>';
+            });
+        }
+
+        // Load initial data
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTimestamp();
+            loadDatabaseStats();
+            loadTableInfo();
+            
+            // Update timestamp every minute
+            setInterval(updateTimestamp, 60000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+id=google_photos_monitor
+name=Google Photos Monitor
+version=v1.0
+versionCode=1
+author=Media Pipeline System
+description=Monitors Google Photos app uploads and provides notifications. Leverages Pixel's built-in Google Photos app instead of custom API integration.

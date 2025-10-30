@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Backup Gang - Download</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .file-download {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .file-name {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+        .file-description {
+            color: #6c757d;
+            margin-bottom: 15px;
+        }
+        .download-btn {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .download-btn:hover {
+            background: #0056b3;
+        }
+        .instructions {
+            background: #e7f3ff;
+            border-left: 4px solid #007bff;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+        .step-number {
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Pixel Backup Gang - Download Center</h1>
+        
+        <div class="file-download">
+            <div class="file-name">pixel_backup_gang.zip</div>
+            <div class="file-description">Magisk module package - Install this via Magisk Manager on your Pixel device</div>
+            <a href="/api/download/pixel_backup_gang.zip" class="download-btn">📦 Download Module</a>
+        </div>
+        
+        <div class="file-download">
+            <div class="file-name">credentials.json</div>
+            <div class="file-description">Configuration file - Copy this to your Pixel device after module installation</div>
+            <a href="/api/download/credentials.json" class="download-btn">⚙️ Download Config</a>
+        </div>
+        
+        <div class="instructions">
+            <h3>📋 Installation Instructions</h3>
+            
+            <div class="step">
+                <span class="step-number">1</span>
+                <strong>Download Files:</strong> Download both files above to your computer
+            </div>
+            
+            <div class="step">
+                <span class="step-number">2</span>
+                <strong>Transfer to Pixel:</strong> Copy both files to your Pixel device (via USB, cloud storage, or ADB)
+            </div>
+            
+            <div class="step">
+                <span class="step-number">3</span>
+                <strong>Install Module:</strong> Open Magisk Manager → Modules → Install → Select pixel_backup_gang.zip
+            </div>
+            
+            <div class="step">
+                <span class="step-number">4</span>
+                <strong>Configure:</strong> Copy credentials.json to /data/adb/modules/pixel_backup_gang/ and edit with your Telegram credentials
+            </div>
+            
+            <div class="step">
+                <span class="step-number">5</span>
+                <strong>Reboot:</strong> Reboot your Pixel device to activate the module
+            </div>
+            
+            <div class="step">
+                <span class="step-number">6</span>
+                <strong>Test:</strong> Take a photo and check for Telegram notifications
+            </div>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Important:</strong> Make sure your Pixel device is rooted with Magisk installed before proceeding. The module requires root access to function properly.
+        </div>
+        
+        <div class="instructions">
+            <h3>🔧 Configuration</h3>
+            <p>Edit the credentials.json file with your Telegram bot details:</p>
+            <pre style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto;">
+{
+  "telegram": {
+    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+    "chat_id": "YOUR_TELEGRAM_CHAT_ID",
+    "enabled": true
+  }
+}</pre>
+        </div>
+        
+        <div class="instructions">
+            <h3>📊 Verification</h3>
+            <p>After installation, you can verify the module is working by:</p>
+            <ul>
+                <li>Checking Magisk Manager for the module status</li>
+                <li>Taking a photo and waiting for Telegram notification</li>
+                <li>Checking logs: <code>tail -f /data/adb/modules/pixel_backup_gang/logs/backup.log</code></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

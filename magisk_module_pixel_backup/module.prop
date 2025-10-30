@@ -1,0 +1,6 @@
+id=pixel_backup_gang
+name=Pixel Backup Gang
+version=v1.0
+versionCode=1
+author=Media Pipeline System
+description=Integrates with Pixel's built-in Google Photos backup system. Monitors and manages automatic photo backups without custom API integration.

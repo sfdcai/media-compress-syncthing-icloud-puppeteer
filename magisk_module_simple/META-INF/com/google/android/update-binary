@@ -1,0 +1,59 @@
+#!/sbin/sh
+
+# Magisk Module: Google Photos Monitor
+# Version: 1.0
+# Author: Media Pipeline System
+
+umask 022
+ui_print " "
+ui_print "*******************************"
+ui_print "  Google Photos Monitor v1.0  "
+ui_print "*******************************"
+ui_print " "
+
+# Check if Magisk is installed
+if [ ! -d "/data/adb" ]; then
+    ui_print "! Magisk not found!"
+    ui_print "! Please install Magisk first"
+    exit 1
+fi
+
+# Create module directory
+MODPATH=${0%/*}
+MODID=google_photos_monitor
+MODNAME="Google Photos Monitor"
+
+# Set permissions
+ui_print "- Setting permissions..."
+set_perm_recursive $MODPATH 0 0 0755 0644
+set_perm $MODPATH/service.sh 0 0 0755
+set_perm $MODPATH/monitor.py 0 0 0755
+set_perm $MODPATH/credentials.json 0 0 0644
+
+# Create service directory
+mkdir -p /data/adb/service.d
+mkdir -p /data/adb/modules/$MODID
+
+# Copy files
+ui_print "- Installing files..."
+cp -f $MODPATH/service.sh /data/adb/service.d/99_google_photos_monitor.sh
+cp -f $MODPATH/monitor.py /data/adb/modules/$MODID/
+cp -f $MODPATH/credentials.json /data/adb/modules/$MODID/
+
+# Set service permissions
+chmod 0755 /data/adb/service.d/99_google_photos_monitor.sh
+
+# Create log directory
+mkdir -p /data/adb/modules/$MODID/logs
+chmod 0755 /data/adb/modules/$MODID/logs
+
+ui_print " "
+ui_print "✓ Installation complete!"
+ui_print "✓ Module will start on next boot"
+ui_print "✓ Check logs at: /data/adb/modules/$MODID/logs/"
+ui_print " "
+
+# Cleanup
+rm -rf $MODPATH
+
+exit 0

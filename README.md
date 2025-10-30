@@ -1,10 +1,10 @@
-# Media Pipeline - iCloud to Google Photos Automation
+# Media Pipeline
 
-A comprehensive media compression and syncing pipeline for iCloud and Google Photos, designed to run in Ubuntu LXC containers on Proxmox. This system automatically downloads media from iCloud, compresses it, and uploads it to both iCloud Photos and Google Photos (via Syncthing) with intelligent deduplication and organization.
+A comprehensive media compression and syncing pipeline for iCloud and Google Photos, designed to run in Ubuntu LXC containers on Proxmox.
 
 ## Features
 
-- **Automated Download**: Downloads media from iCloud using icloudpd with database tracking
+- **Automated Download**: Downloads media from iCloud using icloudpd
 - **Smart Deduplication**: Removes duplicate files using MD5 hashing
 - **Progressive Compression**: Compresses media with age-based recompression
 - **Dual Upload**: Syncs to both iCloud Photos and Google Photos (via Syncthing)
@@ -12,10 +12,6 @@ A comprehensive media compression and syncing pipeline for iCloud and Google Pho
 - **Database Tracking**: Comprehensive logging and tracking via Supabase
 - **Feature Toggles**: Enable/disable individual components
 - **LXC Ready**: Optimized for Ubuntu LXC containers on Proxmox
-- **Environment Management**: Stable Python environment with backup/restore
-- **Sync Monitoring**: Real-time Syncthing sync status monitoring
-- **Batch Processing**: Configurable batch sizes for optimal performance
-- **Error Recovery**: Comprehensive error handling and recovery mechanisms
 
 ## Architecture
 
@@ -30,28 +26,8 @@ A comprehensive media compression and syncing pipeline for iCloud and Google Pho
 6. Sort uploaded files → sorted/yyyy/mm/dd/
 7. Verify & cleanup → Remove processed files
 ```
-## 🎯 **Production Status: READY**
-
-**✅ All core components are working and production-ready!**
-
-### **Latest Updates (December 2024)**
-- ✅ Enhanced iCloud download with database tracking
-- ✅ Complete Pixel sync workflow with Syncthing monitoring
-- ✅ Robust environment management system
-- ✅ Comprehensive error handling and recovery
-- ✅ Real-time sync status monitoring
-- ✅ Configurable batch processing
-- ✅ **NEW**: Fixed Puppeteer API compatibility (waitForTimeout → setTimeout)
-- ✅ **NEW**: External selector configuration for iCloud Photos
-- ✅ **NEW**: Manual selector testing script for easy updates
-- ✅ **NEW**: Chrome dependencies included in installation
-- ✅ **NEW**: Improved error handling and troubleshooting
-- ✅ Database backfill utilities
-
-### **Quick Start Command**
-```bash
+start with 
 bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syncthing-icloud-puppeteer/main/setup-git-clone.sh)"
-```
 
 ## 🚀 Quick Start
 
@@ -59,10 +35,7 @@ bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syn
 
 #### **Step 1: Initial Setup**
 ```bash
-# Quick setup (recommended)
-bash -c "$(wget -qO- https://raw.githubusercontent.com/sfdcai/media-compress-syncthing-icloud-puppeteer/main/setup-git-clone.sh)"
-
-# Or manual setup
+# Clone the repository
 git clone https://github.com/sfdcai/media-compress-syncthing-icloud-puppeteer.git
 cd media-compress-syncthing-icloud-puppeteer
 
@@ -350,50 +323,6 @@ The `test_supabase.py` script performs comprehensive testing of your Supabase se
 - `batches` - Tracks batch processing operations (icloud/pixel uploads)
 - `duplicate_files` - Tracks duplicate file relationships
 - `pipeline_logs` - Records pipeline step execution and status
-
-### **Production Scripts Usage:**
-
-#### **Individual Operations:**
-```bash
-# Download from iCloud (with database tracking)
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/download_from_icloud.py
-
-# Prepare files for Pixel sync
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/prepare_pixel_sync.py
-
-# Monitor Syncthing sync status
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/monitor_syncthing_sync.py
-
-# Complete Pixel sync workflow
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pixel_sync.py
-
-# Run complete pipeline
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pipeline.py
-```
-
-#### **Environment Management:**
-```bash
-# Create stable environment
-sudo ./scripts/create_stable_environment.sh
-
-# Backup environment
-sudo ./scripts/backup_environment.sh backup
-
-# Quick environment fix
-sudo ./scripts/quick_env_fix.sh
-```
-
-#### **Testing & Debugging:**
-```bash
-# Test Supabase connection
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/test_supabase.py
-
-# Test iCloud credentials
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/test_icloud_credentials.py
-
-# Backfill database with existing files
-sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/backfill_database.py
-```
 
 #### **Running the test:**
 ```bash
@@ -1424,38 +1353,6 @@ sudo ./scripts/check_and_fix.sh --fix-permissions
 - Provide system logs and error messages
 - Specify your system configuration
 - Include steps to reproduce the issue
-
-## 🚨 **Known Limitations & Considerations**
-
-### **iCloud Photos Upload Limitations**
-- **Web Automation Dependency**: iCloud Photos upload relies on web automation (Puppeteer)
-- **Session Management**: Web sessions may expire and require re-authentication
-- **Upload Button Detection**: May need selector updates if iCloud changes their interface
-- **Rate Limiting**: Apple may impose rate limits on uploads
-- **2FA Requirements**: Requires two-factor authentication setup
-
-### **Google Photos Integration Limitations**
-- **Syncthing Dependency**: Google Photos integration requires Syncthing setup
-- **P2P Sync**: Requires network connectivity between devices
-- **Storage Management**: No automatic deletion from local storage after cloud upload
-- **Album Organization**: Limited album organization capabilities
-
-### **System Limitations**
-- **Headless Operation**: Some features may not work in headless environments
-- **Network Dependency**: Requires stable internet connectivity
-- **Storage Requirements**: Significant local storage needed for processing
-- **Processing Time**: Large media collections may take considerable time to process
-
-### **Authentication Limitations**
-- **iCloud App-Specific Passwords**: Requires Apple ID with 2FA and app-specific passwords
-- **Session Expiration**: Both iCloud and Google Photos sessions may expire
-- **Manual Intervention**: May require manual login for expired sessions
-
-### **Data Management Limitations**
-- **Duplicate Detection**: Based on file hashes, may not catch all duplicates
-- **Metadata Preservation**: Some metadata may be lost during compression
-- **File Format Support**: Limited to common image and video formats
-- **Batch Processing**: Large batches may timeout or fail
 
 ## License
 

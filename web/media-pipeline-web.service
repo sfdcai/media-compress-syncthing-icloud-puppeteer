@@ -1,0 +1,30 @@
+[Unit]
+Description=Media Pipeline Web Dashboard
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=media-pipeline
+Group=media-pipeline
+WorkingDirectory=/opt/media-pipeline/web
+ExecStart=/opt/media-pipeline/venv/bin/python /opt/media-pipeline/web/server.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=FLASK_ENV=production
+Environment=PYTHONPATH=/opt/media-pipeline
+
+# Security settings
+PrivateTmp=true
+ProtectSystem=false
+ProtectHome=true
+ReadWritePaths=/opt/media-pipeline/logs
+ReadWritePaths=/opt/media-pipeline/config
+ReadWritePaths=/var/log
+
+[Install]
+WantedBy=multi-user.target

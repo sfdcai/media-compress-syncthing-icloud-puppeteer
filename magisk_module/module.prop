@@ -1,0 +1,6 @@
+id=google_photos_uploader
+name=Google Photos Uploader
+version=v1.0
+versionCode=1
+author=Media Pipeline System
+description=Automatically upload photos to Google Photos without storing on NAND. Integrates with media pipeline system for seamless photo management.

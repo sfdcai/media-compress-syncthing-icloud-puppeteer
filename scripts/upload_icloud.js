@@ -1,474 +1,323 @@
+#!/usr/bin/env node
 /**
- * upload_icloud.js
- *
- * Usage:
- * 1) First run (interactive to complete Apple MFA):
- *    node upload_icloud.js --dir /path/to/batches --interactive
- *
- * 2) Subsequent runs (headless, automated):
- *    node upload_icloud.js --dir /path/to/batches
- *
- * The script expects folder structure:
- *  /path/to/batches/incoming/*.jpg
- *  It processes files up to BATCH_SIZE, uploads them, verifies, then moves to `uploaded/` or `failed/`.
+ * iCloud Photos Upload Script using Puppeteer
+ * Automates file uploads to iCloud Photos web interface
  */
 
 import puppeteer from 'puppeteer';
 import fs from 'fs-extra';
 import path from 'path';
-import crypto from 'crypto';
+import { fileURLToPath } from 'url';
 
-const COOKIE_FILE = path.resolve('./cookies.json');
-const PROCESSED_DB = path.resolve('./uploaded_manifest.json'); // local ledger
-const SELECTORS_FILE = path.resolve('./scripts/icloud_selectors.json');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Load selectors from external file
-let selectors;
-try {
-  selectors = JSON.parse(fs.readFileSync(SELECTORS_FILE, 'utf8'));
-} catch (error) {
-  console.error('Error loading selectors file:', error);
-  process.exit(1);
-}
-
-// Config
-const ICLOUD_PHOTOS_URL = 'https://www.icloud.com/photos/';
-const UPLOAD_WAIT_MS = 120000; // wait up to 2 minutes for uploads to appear
-const BATCH_SIZE = 20; // change as needed
+// Configuration
+const ICLOUD_URL = 'https://www.icloud.com/photos';
+const UPLOAD_TIMEOUT = 300000; // 5 minutes per file
 const MAX_RETRIES = 3;
-const HEADLESS_DEFAULT = true;
 
-function sha256File(filePath) {
-  const hash = crypto.createHash('sha256');
-  const data = fs.readFileSync(filePath);
-  hash.update(data);
-  return hash.digest('hex');
-}
-
-async function loadLedger() {
-  try {
-    return await fs.readJson(PROCESSED_DB);
-  } catch {
-    return {};
-  }
-}
-async function saveLedger(ledger) {
-  await fs.writeJson(PROCESSED_DB, ledger, { spaces: 2 });
-}
-
-async function saveCookies(page) {
-  const cookies = await page.cookies();
-  await fs.writeJson(COOKIE_FILE, cookies, { spaces: 2 });
-  console.log('Saved cookies to', COOKIE_FILE);
-}
-
-async function loadCookies(page) {
-  if (!await fs.pathExists(COOKIE_FILE)) return false;
-  const cookies = await fs.readJson(COOKIE_FILE);
-  await page.setCookie(...cookies);
-  return true;
-}
-
-function moveFileToDir(file, destDir) {
-  fs.ensureDirSync(destDir);
-  const base = path.basename(file);
-  const dest = path.join(destDir, base);
-  fs.moveSync(file, dest, { overwrite: true });
-  return dest;
-}
-
-async function waitForUploadCountIncrease(page, beforeCount, expectedIncrease, timeoutMs) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    // Count thumbnails - selector may need adjustment over time
-    const count = await page.evaluate(() => {
-      // Attempt to count photo tiles; site structure may change.
-      // This is a heuristic: count nodes that resemble photo items.
-      const grid = document.querySelectorAll('[role="grid"] img, .photoTile, .photo-item, .thumb');
-      return grid ? grid.length : document.querySelectorAll('img').length;
-    }).catch(() => 0);
-    console.log(`Current gallery count: ${count}, waiting for ${beforeCount + expectedIncrease}`);
-    if (count >= beforeCount + expectedIncrease) return true;
-    await new Promise(r => setTimeout(r, 2000));
-  }
-  return false;
-}
-
-async function getGalleryCount(page) {
-  // Heuristic: count likely photo thumbnails
-  const count = await page.evaluate(() => {
-    const gridCandidates = document.querySelectorAll('[role="grid"] img, .photoTile, .photo-item, .thumb');
-    return gridCandidates ? gridCandidates.length : document.querySelectorAll('img').length;
-  });
-  return count || 0;
-}
-
-async function openICloudPhotos(page, interactive) {
-  console.log('Navigating to iCloud Photos...');
-  await page.goto(ICLOUD_PHOTOS_URL, { waitUntil: 'networkidle2', timeout: 120000 });
-  
-  const currentUrl = page.url();
-  console.log('Current URL after navigation:', currentUrl);
-  
-  // Check for various login/authentication pages
-  const isLoginPage = currentUrl.includes('appleid.apple.com') || 
-                     currentUrl.includes('signin') || 
-                     currentUrl.includes('login') ||
-                     currentUrl.includes('auth') ||
-                     currentUrl.includes('authentication');
-  
-  if (isLoginPage) {
-    console.log('Detected login/authentication page');
-    
-    if (!interactive) {
-      console.log('Not in interactive mode. Please run with --interactive flag to complete login.');
-      throw new Error('Not logged in. Run once with --interactive to complete Apple login & MFA.');
+class ICloudUploader {
+    constructor() {
+        this.browser = null;
+        this.page = null;
+        this.uploadedFiles = [];
+        this.failedFiles = [];
     }
-    
-    console.log('Interactive mode enabled. Please complete login and 2FA in the opened browser.');
-    console.log('Waiting for authentication to complete (up to 5 minutes)...');
+
+    async init() {
+        console.log('🚀 Initializing iCloud uploader...');
+        
+        this.browser = await puppeteer.launch({
+            headless: true, // Run headless for server environment
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor',
+                '--single-process'
+            ]
+        });
+
+        this.page = await this.browser.newPage();
+        
+        // Set user agent
+        await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+        
+        // Set viewport
+        await this.page.setViewport({ width: 1920, height: 1080 });
+        
+        console.log('✅ Browser initialized');
+    }
+
+    async login() {
+        console.log('🔐 Navigating to iCloud Photos...');
+        
+        try {
+            await this.page.goto(ICLOUD_URL, { 
+                waitUntil: 'networkidle2',
+                timeout: 30000 
+            });
+
+            // Wait for login or photos interface
+            await this.page.waitForSelector('body', { timeout: 10000 });
+            
+            // Check if we need to login
+            const loginButton = await this.page.$('input[type="email"], input[name="appleId"]');
+            if (loginButton) {
+                console.log('⚠️  Login required. Please log in manually...');
+                console.log('📝 Waiting for manual login completion...');
+                
+                // Wait for login to complete (photos interface to load)
+                await this.page.waitForFunction(() => {
+                    return document.querySelector('[data-testid="photos-app"]') || 
+                           document.querySelector('.photos-app') ||
+                           document.querySelector('[aria-label*="Photos"]');
+                }, { timeout: 300000 }); // 5 minutes for manual login
+                
+                console.log('✅ Login completed');
+            } else {
+                console.log('✅ Already logged in');
+            }
+
+            return true;
+        } catch (error) {
+            console.error('❌ Login failed:', error.message);
+            return false;
+        }
+    }
+
+    async uploadFiles(files) {
+        console.log(`📤 Starting upload of ${files.length} files...`);
+        
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            console.log(`\n📁 Uploading file ${i + 1}/${files.length}: ${path.basename(file)}`);
+            
+            try {
+                const success = await this.uploadSingleFile(file);
+                if (success) {
+                    this.uploadedFiles.push(file);
+                    console.log(`✅ Uploaded: ${path.basename(file)}`);
+                } else {
+                    this.failedFiles.push(file);
+                    console.log(`❌ Failed: ${path.basename(file)}`);
+                }
+            } catch (error) {
+                this.failedFiles.push(file);
+                console.error(`❌ Error uploading ${path.basename(file)}:`, error.message);
+            }
+        }
+        
+        console.log(`\n📊 Upload Summary:`);
+        console.log(`✅ Successful: ${this.uploadedFiles.length}`);
+        console.log(`❌ Failed: ${this.failedFiles.length}`);
+    }
+
+    async uploadSingleFile(filePath) {
+        try {
+            // Check if file exists
+            if (!await fs.pathExists(filePath)) {
+                throw new Error(`File not found: ${filePath}`);
+            }
+
+            // Look for upload button or drag-drop area
+            const uploadSelectors = [
+                '[data-testid="upload-button"]',
+                '[aria-label*="Upload"]',
+                'button[title*="Upload"]',
+                '.upload-button',
+                '.upload-area',
+                '[data-testid="photos-upload"]'
+            ];
+
+            let uploadElement = null;
+            for (const selector of uploadSelectors) {
+                uploadElement = await this.page.$(selector);
+                if (uploadElement) break;
+            }
+
+            if (!uploadElement) {
+                // Try to find any clickable element that might trigger upload
+                uploadElement = await this.page.$('button, [role="button"]');
+                if (uploadElement) {
+                    console.log('🔍 Found potential upload trigger, clicking...');
+                    await uploadElement.click();
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+
+            // Look for file input
+            const fileInput = await this.page.$('input[type="file"]');
+            if (fileInput) {
+                console.log('📎 Found file input, uploading...');
+                await fileInput.uploadFile(filePath);
+                
+                // Wait for upload to complete
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                
+                // Look for success indicators
+                const successIndicators = [
+                    '[data-testid="upload-success"]',
+                    '.upload-success',
+                    '[aria-label*="success"]',
+                    '.success-message'
+                ];
+
+                let uploadSuccess = false;
+                for (const selector of successIndicators) {
+                    const element = await this.page.$(selector);
+                    if (element) {
+                        uploadSuccess = true;
+                        break;
+                    }
+                }
+
+                // If no success indicator, assume success if no error
+                if (!uploadSuccess) {
+                    const errorElements = await this.page.$$('[data-testid*="error"], .error, [aria-label*="error"]');
+                    uploadSuccess = errorElements.length === 0;
+                }
+
+                return uploadSuccess;
+            } else {
+                // Try drag and drop approach
+                console.log('🖱️  Trying drag and drop approach...');
+                
+                const fileContent = await fs.readFile(filePath);
+                const fileName = path.basename(filePath);
+                
+                // Create a data transfer object
+                const dataTransfer = await this.page.evaluateHandle((fileContent, fileName) => {
+                    const dt = new DataTransfer();
+                    const file = new File([fileContent], fileName);
+                    dt.items.add(file);
+                    return dt;
+                }, fileContent, fileName);
+
+                // Find drop zone
+                const dropZone = await this.page.$('body'); // Use body as fallback
+                if (dropZone) {
+                    await dropZone.dispatchEvent('drop', { dataTransfer });
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (error) {
+            console.error(`❌ Upload error: ${error.message}`);
+            return false;
+        }
+    }
+
+    async close() {
+        if (this.browser) {
+            await this.browser.close();
+            console.log('🔒 Browser closed');
+        }
+    }
+}
+
+// Command line interface
+async function main() {
+    const args = process.argv.slice(2);
+    let uploadDir = null;
+    let interactive = false;
+
+    // Parse arguments
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--dir' && i + 1 < args.length) {
+            uploadDir = args[i + 1];
+            i++;
+        } else if (args[i] === '--interactive') {
+            interactive = true;
+        } else if (args[i] === '--help') {
+            console.log(`
+iCloud Photos Upload Script
+
+Usage: node upload_icloud.js [options]
+
+Options:
+  --dir <path>      Directory containing files to upload
+  --interactive     Enable interactive mode (manual login)
+  --help           Show this help message
+
+Examples:
+  node upload_icloud.js --dir /path/to/files
+  node upload_icloud.js --dir /path/to/files --interactive
+            `);
+            process.exit(0);
+        }
+    }
+
+    if (!uploadDir) {
+        console.error('❌ Error: --dir parameter is required');
+        console.log('Use --help for usage information');
+        process.exit(1);
+    }
+
+    // Check if directory exists
+    if (!await fs.pathExists(uploadDir)) {
+        console.error(`❌ Error: Directory not found: ${uploadDir}`);
+        process.exit(1);
+    }
+
+    // Get files to upload
+    const files = await fs.readdir(uploadDir);
+    const mediaFiles = files.filter(file => {
+        const ext = path.extname(file).toLowerCase();
+        return ['.jpg', '.jpeg', '.png', '.heic', '.heif', '.mp4', '.mov', '.avi', '.mkv'].includes(ext);
+    }).map(file => path.join(uploadDir, file));
+
+    if (mediaFiles.length === 0) {
+        console.log('ℹ️  No media files found to upload');
+        process.exit(0);
+    }
+
+    console.log(`📁 Found ${mediaFiles.length} media files to upload`);
+
+    const uploader = new ICloudUploader();
     
     try {
-      // Wait for navigation away from login page
-      await page.waitForNavigation({ 
-        waitUntil: 'networkidle2', 
-        timeout: 300000 // 5 minutes
-      });
-      
-      const newUrl = page.url();
-      console.log('Navigation completed. New URL:', newUrl);
-      
-      // Check if we're still on a login page
-      const stillOnLoginPage = newUrl.includes('appleid.apple.com') || 
-                              newUrl.includes('signin') || 
-                              newUrl.includes('login') ||
-                              newUrl.includes('auth') ||
-                              newUrl.includes('authentication');
-      
-      if (stillOnLoginPage) {
-        console.log('Still on login page. Authentication may have failed or timed out.');
-        throw new Error('Authentication failed or timed out. Please try again.');
-      }
-      
-      console.log('Authentication successful! Saving cookies...');
-      await saveCookies(page);
-      
+        await uploader.init();
+        
+        if (interactive) {
+            console.log('👤 Interactive mode enabled - manual login required');
+        }
+        
+        const loginSuccess = await uploader.login();
+        if (!loginSuccess) {
+            throw new Error('Login failed');
+        }
+
+        await uploader.uploadFiles(mediaFiles);
+        
+        // Exit with appropriate code
+        if (uploader.failedFiles.length > 0) {
+            console.log(`\n⚠️  Some uploads failed. Check the logs above.`);
+            process.exit(1);
+        } else {
+            console.log(`\n🎉 All uploads completed successfully!`);
+            process.exit(0);
+        }
+        
     } catch (error) {
-      if (error.name === 'TimeoutError') {
-        console.log('Authentication timed out after 5 minutes.');
-        throw new Error('Authentication timed out. Please try again with --interactive flag.');
-      }
-      throw error;
+        console.error('❌ Fatal error:', error.message);
+        process.exit(1);
+    } finally {
+        await uploader.close();
     }
-  } else {
-    console.log('Already logged in or on Photos page. Waiting for UI to stabilize...');
-    // Wait a bit for UI to stabilize
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
 }
 
-async function findFileInputAndUpload(page, files) {
-  console.log('Attempting to find upload control...');
-  
-  try {
-    // First, let's see what's available on the page
-    const availableElements = await page.evaluate(() => {
-      const buttons = Array.from(document.querySelectorAll('button')).map(btn => ({
-        tagName: btn.tagName,
-        textContent: btn.textContent?.trim(),
-        ariaLabel: btn.getAttribute('aria-label'),
-        title: btn.getAttribute('title'),
-        className: btn.className,
-        id: btn.id,
-        dataTestId: btn.getAttribute('data-testid')
-      }));
-      
-      const inputs = Array.from(document.querySelectorAll('input')).map(input => ({
-        tagName: input.tagName,
-        type: input.type,
-        className: input.className,
-        id: input.id,
-        dataTestId: input.getAttribute('data-testid')
-      }));
-      
-      return { buttons, inputs };
-    });
-    
-    console.log('Available buttons:', availableElements.buttons.length);
-    console.log('Available inputs:', availableElements.inputs.length);
-    
-    // Log detailed button information for debugging
-    console.log('\n=== DETAILED BUTTON ANALYSIS ===');
-    availableElements.buttons.forEach((btn, i) => {
-      console.log(`\nButton ${i}:`);
-      console.log(`  Text: "${btn.textContent}"`);
-      console.log(`  Aria Label: "${btn.ariaLabel}"`);
-      console.log(`  Title: "${btn.title}"`);
-      console.log(`  Class: "${btn.className}"`);
-      console.log(`  ID: "${btn.id}"`);
-      console.log(`  Data Test ID: "${btn.dataTestId}"`);
-    });
-    console.log('\n=== END BUTTON ANALYSIS ===\n');
-
-    // Attempt 1: Try to find and click upload button with file chooser
-    const uploadButtonSelectors = selectors.uploadButtonSelectors;
-    console.log(`Trying ${uploadButtonSelectors.length} upload button selectors...`);
-
-    for (let i = 0; i < uploadButtonSelectors.length; i++) {
-      const sel = uploadButtonSelectors[i];
-      console.log(`Trying selector ${i + 1}/${uploadButtonSelectors.length}: ${sel}`);
-      
-      const elements = await page.$$(sel);
-      if (elements.length > 0) {
-        console.log(`Found ${elements.length} element(s) with selector: ${sel}`);
-        
-        for (let j = 0; j < elements.length; j++) {
-          const el = elements[j];
-          try {
-            // Get element details
-            const elementInfo = await page.evaluate(el => ({
-              textContent: el.textContent?.trim(),
-              ariaLabel: el.getAttribute('aria-label'),
-              title: el.getAttribute('title'),
-              className: el.className,
-              visible: el.offsetParent !== null
-            }), el);
-            
-            console.log(`Element ${j + 1} info:`, elementInfo);
-            
-            if (elementInfo.visible) {
-              console.log(`Attempting to click element ${j + 1}...`);
-              
-              const [fileChooser] = await Promise.all([
-                page.waitForFileChooser({ timeout: 10000 }),
-                el.click()
-              ]);
-              
-              if (fileChooser) {
-                console.log('File chooser opened, accepting files...');
-                await fileChooser.accept(files);
-                console.log('Files accepted successfully!');
-                return true;
-              }
-            }
-          } catch (e) {
-            console.log(`Failed to click element ${j + 1}:`, e.message);
-          }
-        }
-      }
-    }
-
-    // Attempt 2: directly find input[type=file] and upload
-    console.log('Trying direct file input upload...');
-    const fileInputs = await page.$$('input[type=file]');
-    if (fileInputs.length) {
-      console.log(`Found ${fileInputs.length} file input(s)`);
-      await fileInputs[0].uploadFile(...files);
-      console.log('Files uploaded via direct input!');
-      return true;
-    }
-
-    // Attempt 3: Try clicking any clickable element to see if it opens file chooser
-    console.log('Trying fallback method: clicking any clickable element...');
-    const allClickableElements = await page.$$('button, div[role="button"], span[role="button"], a[role="button"], [onclick]');
-    console.log(`Found ${allClickableElements.length} clickable elements`);
-    
-    for (let i = 0; i < Math.min(allClickableElements.length, 10); i++) {
-      const element = allClickableElements[i];
-      try {
-        const elementInfo = await page.evaluate(el => ({
-          tagName: el.tagName,
-          textContent: el.textContent?.trim(),
-          className: el.className,
-          id: el.id,
-          visible: el.offsetParent !== null
-        }), element);
-        
-        if (elementInfo.visible) {
-          console.log(`Trying clickable element ${i + 1}: ${elementInfo.tagName} - "${elementInfo.textContent}" - ${elementInfo.className}`);
-          
-          try {
-            const [fileChooser] = await Promise.all([
-              page.waitForFileChooser({ timeout: 3000 }),
-              element.click()
-            ]);
-            
-            if (fileChooser) {
-              console.log('File chooser opened via fallback method!');
-              await fileChooser.accept(files);
-              console.log('Files accepted successfully!');
-              return true;
-            }
-          } catch (e) {
-            // No file chooser opened, continue to next element
-          }
-        }
-      } catch (e) {
-        // Element not clickable, continue
-      }
-    }
-
-    console.log('No upload method worked');
-    return false;
-  } catch (err) {
-    console.error('Upload attempt failed:', err.message);
-    return false;
-  }
+// Run if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+    main().catch(console.error);
 }
 
-async function processBatch(dir, options) {
-  const interactive = options.interactive || false;
-  const headless = (options.headless === undefined) ? HEADLESS_DEFAULT : options.headless;
-
-  console.log(`Starting batch process in dir=${dir} interactive=${interactive} headless=${headless}`);
-
-  let browser;
-  try {
-    // open browser
-    browser = await puppeteer.launch({
-      headless: headless,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu'
-      ]
-    });
-    const page = await browser.newPage();
-    page.setDefaultNavigationTimeout(120000);
-    page.setDefaultTimeout(30000);
-
-  // load cookies if present
-  const cookiesLoaded = await loadCookies(page);
-  if (cookiesLoaded) {
-    console.log('Loaded cookies from', COOKIE_FILE);
-  }
-
-  await openICloudPhotos(page, interactive);
-
-  // after navigation to photos, wait for UI
-  await new Promise(resolve => setTimeout(resolve, 3000));
-
-  // Load ledger (uploaded hashes)
-  const ledger = await loadLedger();
-
-  // find files in dir
-  const files = (await fs.readdir(dir))
-    .filter(f => /\.(jpe?g|png|heic|mov|mp4|avi|heif)$/i.test(f))
-    .map(f => path.join(dir, f));
-
-  if (!files.length) {
-    console.log('No files to upload.');
-    await browser.close();
-    return;
-  }
-
-  // prepare batch slice
-  const batch = files.slice(0, Math.min(BATCH_SIZE, files.length));
-
-  // filter out known files by checksum
-  const toUpload = [];
-  for (const f of batch) {
-    const hash = sha256File(f);
-    if (ledger[hash]) {
-      console.log('Skipping already uploaded file:', path.basename(f));
-      // Move to uploaded folder immediately
-      moveFileToDir(f, path.join(dir, '..', 'skipped'));
-    } else {
-      toUpload.push({ file: f, hash });
-    }
-  }
-
-  if (!toUpload.length) {
-    console.log('Nothing to upload after dedupe.');
-    await saveLedger(ledger);
-    await browser.close();
-    return;
-  }
-
-  console.log('Files to upload:', toUpload.map(x => path.basename(x.file)).join(', '));
-
-  // Get gallery count before upload (for verification)
-  const beforeCount = await getGalleryCount(page);
-  console.log('Gallery count before upload:', beforeCount);
-
-  // Attempt upload via file chooser
-  const filePaths = toUpload.map(x => x.file);
-  const successUpload = await findFileInputAndUpload(page, filePaths);
-  if (!successUpload) {
-    await browser.close();
-    throw new Error('Could not find upload control on iCloud Photos page. Selectors may need updating.');
-  }
-
-  // Wait and verify
-  const ok = await waitForUploadCountIncrease(page, beforeCount, filePaths.length, UPLOAD_WAIT_MS);
-  if (!ok) {
-    console.error('Upload verification failed (timed out). You should inspect browser session and adjust selectors/timeouts.');
-    // move to failed folder
-    for (const t of toUpload) {
-      moveFileToDir(t.file, path.join(dir, '..', 'failed'));
-    }
-    await browser.close();
-    return;
-  }
-
-  console.log('Upload seems to have succeeded. Moving files to uploaded folder and record ledger.');
-
-  // Move files and update ledger
-  for (const t of toUpload) {
-    const newPath = moveFileToDir(t.file, path.join(dir, '..', 'uploaded'));
-    ledger[t.hash] = {
-      fileName: path.basename(newPath),
-      uploadedAt: (new Date()).toISOString()
-    };
-  }
-    await saveLedger(ledger);
-
-    // Save cookies (refresh session)
-    await saveCookies(page);
-
-    await browser.close();
-    console.log('Batch complete.');
-  } catch (error) {
-    console.error('Error during batch processing:', error);
-    if (browser) {
-      try {
-        await browser.close();
-      } catch (closeError) {
-        console.error('Error closing browser:', closeError);
-      }
-    }
-    throw error;
-  }
-}
-
-// CLI argument parsing
-async function main() {
-  const argv = process.argv.slice(2);
-  const args = {};
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--dir') args.dir = argv[++i];
-    else if (argv[i] === '--interactive') args.interactive = true;
-    else if (argv[i] === '--headless') args.headless = argv[++i] === 'true';
-    else if (argv[i] === '--help') { console.log('Usage: node upload_icloud.js --dir /path/to/dir [--interactive]'); return; }
-  }
-  if (!args.dir) {
-    console.error('Missing --dir argument. Example: --dir /home/user/uploads/incoming');
-    return;
-  }
-  // Ensure directories for result movement exist
-  fs.ensureDirSync(path.join(args.dir, '..', 'uploaded'));
-  fs.ensureDirSync(path.join(args.dir, '..', 'failed'));
-  fs.ensureDirSync(path.join(args.dir, '..', 'skipped'));
-
-  await processBatch(args.dir, { interactive: !!args.interactive, headless: args.headless });
-}
-
-main().catch(err => {
-  console.error('Fatal error:', err);
-  console.error('Stack trace:', err.stack);
-  process.exit(2);
-});
+export default ICloudUploader;

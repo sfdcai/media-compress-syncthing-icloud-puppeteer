@@ -1,0 +1,435 @@
+/* Custom styles for Media Pipeline Dashboard */
+
+/* Custom styles that work with Bootstrap's dark mode */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Google Photos Section Enhancements */
+.google-photos-card {
+    border: 2px solid #4285f4;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(66, 133, 244, 0.15);
+    transition: all 0.3s ease;
+}
+
+.google-photos-card:hover {
+    box-shadow: 0 8px 24px rgba(66, 133, 244, 0.25);
+    transform: translateY(-2px);
+}
+
+.google-photos-header {
+    background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+    border-radius: 10px 10px 0 0;
+}
+
+.google-photos-status-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.google-photos-progress {
+    height: 12px;
+    border-radius: 6px;
+    background-color: rgba(255,255,255,0.2);
+    overflow: hidden;
+}
+
+.google-photos-progress .progress-bar {
+    border-radius: 6px;
+    transition: width 0.6s ease;
+}
+
+.google-photos-stats-card {
+    border-radius: 8px;
+    transition: transform 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.google-photos-stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.google-photos-control-panel {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+
+.google-photos-button {
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.google-photos-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Enhanced Status Badges */
+.google-photos-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.5rem 0.75rem;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Loading Animation */
+.google-photos-loading {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Status Cards */
+.status-card {
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.status-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.status-card .status-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.status-card.status-success .status-icon {
+    color: #28a745;
+}
+
+.status-card.status-warning .status-icon {
+    color: #ffc107;
+}
+
+.status-card.status-danger .status-icon {
+    color: #dc3545;
+}
+
+.status-card.status-info .status-icon {
+    color: #17a2b8;
+}
+
+/* Log Container */
+.log-container {
+    border-radius: 8px;
+    padding: 1rem;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.log-content {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Feature Toggle Switches */
+.feature-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.feature-toggle .form-check-input {
+    transform: scale(1.2);
+}
+
+/* Configuration Display */
+.config-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.config-item:last-child {
+    border-bottom: none;
+}
+
+.config-key {
+    font-weight: 600;
+}
+
+.config-value {
+    font-family: 'Courier New', monospace;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+/* Statistics Cards */
+.stat-card {
+    text-align: center;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+}
+
+.stat-card .stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--bs-primary);
+}
+
+.stat-card .stat-label {
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+/* Recent Activity */
+.activity-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.activity-item .activity-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.2rem;
+}
+
+.activity-item.activity-success .activity-icon {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+}
+
+.activity-item.activity-warning .activity-icon {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+}
+
+.activity-item.activity-danger .activity-icon {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+.activity-item.activity-info .activity-icon {
+    background-color: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+}
+
+.activity-content {
+    flex: 1;
+}
+
+.activity-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.activity-time {
+    font-size: 0.85rem;
+}
+
+/* Troubleshooting Guide */
+.troubleshoot-item {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.troubleshoot-item .troubleshoot-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.troubleshoot-item .troubleshoot-description {
+    margin-bottom: 0.75rem;
+}
+
+.troubleshoot-item .troubleshoot-solution {
+    padding: 0.75rem;
+    border-radius: 4px;
+    border-left: 4px solid var(--bs-info);
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+/* Progress Modal */
+.progress {
+    height: 8px;
+}
+
+.progress-bar {
+    transition: width 0.3s ease;
+}
+
+/* Alert Styles */
+.alert {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Button Styles */
+.btn {
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* Card Styles */
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: box-shadow 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.card-header {
+    border-radius: 12px 12px 0 0 !important;
+    font-weight: 600;
+}
+
+/* Tab Styles */
+.nav-tabs {
+    border-bottom: 2px solid var(--bs-border-color);
+}
+
+.nav-tabs .nav-link {
+    border: none;
+    border-radius: 8px 8px 0 0;
+    margin-right: 0.25rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: transparent;
+}
+
+.nav-tabs .nav-link.active {
+    border-radius: 8px 8px 0 0;
+    color: var(--bs-primary);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container-fluid {
+        padding: 0.5rem;
+    }
+    
+    .status-card {
+        margin-bottom: 0.5rem;
+    }
+    
+    .log-container {
+        max-height: 300px;
+    }
+    
+    .btn {
+        font-size: 0.9rem;
+        padding: 0.5rem 0.75rem;
+    }
+}
+
+/* Loading Animation */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255,255,255,.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Status Indicator */
+#status-indicator {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Custom Scrollbar */
+.log-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.log-container::-webkit-scrollbar-track {
+    background: var(--bs-secondary-bg);
+    border-radius: 4px;
+}
+
+.log-container::-webkit-scrollbar-thumb {
+    background: var(--bs-border-color);
+    border-radius: 4px;
+}
+
+.log-container::-webkit-scrollbar-thumb:hover {
+    background: var(--bs-secondary-color);
+}
+
+/* Dark mode specific adjustments */
+[data-bs-theme="dark"] .log-container {
+    background-color: #1e1e1e;
+}
+
+[data-bs-theme="dark"] .log-content {
+    color: #d4d4d4;
+}
+
+[data-bs-theme="dark"] .log-container::-webkit-scrollbar-track {
+    background: #2d2d2d;
+}
+
+[data-bs-theme="dark"] .log-container::-webkit-scrollbar-thumb {
+    background: #555;
+}
+
+[data-bs-theme="dark"] .log-container::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
