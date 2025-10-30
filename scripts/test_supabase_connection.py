@@ -66,11 +66,14 @@ def test_utils_import():
     print("\n=== Utils Import Test ===")
     
     try:
-        # Change to the scripts directory to import utils
+        # Change to the scripts directory to import utils when needed
         import sys
         sys.path.insert(0, '/opt/media-pipeline/scripts')
-        
-        from utils import log_step
+
+        try:  # Prefer relative import when running as a package
+            from .utils import log_step  # type: ignore
+        except ImportError:  # pragma: no cover - fallback for direct execution
+            from utils import log_step  # type: ignore
         print("✓ Utils module imported successfully")
         
         # Test logging

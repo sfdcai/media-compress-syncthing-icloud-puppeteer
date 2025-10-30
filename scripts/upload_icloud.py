@@ -9,23 +9,61 @@ import sys
 import subprocess
 import json
 from pathlib import Path
-from utils import (
-    log_step, get_feature_toggle, ensure_directory_exists,
-    update_batch_status, get_files_by_status, retry
-)
+try:  # Allow running as module or direct script
+    from .utils import (
+        log_step,
+        get_feature_toggle,
+        ensure_directory_exists,
+        update_batch_status,
+        get_files_by_status,
+        retry,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        get_feature_toggle,
+        ensure_directory_exists,
+        update_batch_status,
+        get_files_by_status,
+        retry,
+    )
+
+VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".mov",
+    ".m4v",
+    ".mpg",
+    ".mpeg",
+    ".mpe",
+    ".mp2",
+    ".mpv",
+    ".avi",
+    ".mkv",
+    ".webm",
+}
+
 
 def get_files_in_bridge(bridge_dir):
-    """Get all files in bridge directory (no numbered batch folders)"""
+    """Get all video files in bridge directory (no numbered batch folders)"""
     if not os.path.exists(bridge_dir):
-        return []
-    
-    files = []
+        return [], []
+
+    video_files = []
+    skipped_files = []
+
     for item in os.listdir(bridge_dir):
         item_path = os.path.join(bridge_dir, item)
-        if os.path.isfile(item_path):
-            files.append(item_path)
-    
-    return sorted(files)
+        if not os.path.isfile(item_path):
+            continue
+
+        if Path(item_path).suffix.lower() in VIDEO_EXTENSIONS:
+            video_files.append(item_path)
+        else:
+            skipped_files.append(item_path)
+
+    video_files.sort()
+    skipped_files.sort()
+    return video_files, skipped_files
 
 def validate_node_environment():
     """Validate Node.js environment and dependencies"""
@@ -58,7 +96,7 @@ def validate_node_environment():
         return False
 
 @retry(max_attempts=3, delay=30)
-def upload_files_to_icloud(bridge_dir, interactive=False):
+def upload_files_to_icloud(bridge_dir, interactive=False, inspect_upload=False):
     """Upload all files from bridge directory to iCloud using Puppeteer"""
     try:
         log_step("upload_icloud", f"Starting upload from {bridge_dir}", "info")
@@ -68,6 +106,9 @@ def upload_files_to_icloud(bridge_dir, interactive=False):
         
         if interactive:
             cmd.append("--interactive")
+
+        if inspect_upload:
+            cmd.append("--inspect-upload")
         
         # Run upload script
         result = subprocess.run(
@@ -91,7 +132,7 @@ def upload_files_to_icloud(bridge_dir, interactive=False):
         log_step("upload_icloud", f"Error uploading from {bridge_dir}: {e}", "error")
         return False
 
-def upload_to_icloud(bridge_dir, interactive=False):
+def upload_to_icloud(bridge_dir, interactive=False, inspect_upload=False):
     """Upload all files from bridge directory to iCloud"""
     if not get_feature_toggle("ENABLE_ICLOUD_UPLOAD"):
         log_step("upload_icloud", "iCloud upload is disabled, skipping", "info")
@@ -108,16 +149,39 @@ def upload_to_icloud(bridge_dir, interactive=False):
         return False
     
     # Check if there are files to upload
-    files = get_files_in_bridge(bridge_dir)
+    files, skipped = get_files_in_bridge(bridge_dir)
+
+    if skipped:
+        preview = ", ".join(Path(path).name for path in skipped[:5])
+        log_step(
+            "upload_icloud",
+            f"Skipping {len(skipped)} non-video files in bridge directory: {preview}",
+            "warning",
+        )
     if not files:
+        if inspect_upload:
+            log_step(
+                "upload_icloud",
+                "Inspection mode active — no files required for selector diagnostics",
+                "info",
+            )
+            return upload_files_to_icloud(bridge_dir, interactive, inspect_upload)
+
         log_step("upload_icloud", "No files found to upload", "info")
         return True
-    
+
     log_step("upload_icloud", f"Found {len(files)} files to upload from {bridge_dir}", "info")
     
     # Upload all files
-    if upload_files_to_icloud(bridge_dir, interactive):
-        log_step("upload_icloud", "iCloud upload completed successfully", "success")
+    if upload_files_to_icloud(bridge_dir, interactive, inspect_upload):
+        if inspect_upload:
+            log_step(
+                "upload_icloud",
+                "Selector diagnostics completed. Re-run without ICLOUD_INSPECT_UPLOAD to perform uploads.",
+                "success",
+            )
+        else:
+            log_step("upload_icloud", "iCloud upload completed successfully", "success")
         return True
     else:
         log_step("upload_icloud", "iCloud upload failed", "error")
@@ -128,12 +192,20 @@ def main():
     # Get configuration
     bridge_dir = os.getenv("BRIDGE_ICLOUD_DIR", "bridge/icloud")
     interactive = os.getenv("ICLOUD_INTERACTIVE", "false").lower() == "true"
+    inspect_upload = os.getenv("ICLOUD_INSPECT_UPLOAD", "false").lower() == "true"
     
     # Run upload
-    success = upload_to_icloud(bridge_dir, interactive)
+    success = upload_to_icloud(bridge_dir, interactive, inspect_upload)
     
     if success:
-        log_step("upload_icloud", "iCloud upload completed successfully", "success")
+        if inspect_upload:
+            log_step(
+                "upload_icloud",
+                "iCloud upload diagnostics finished",
+                "success",
+            )
+        else:
+            log_step("upload_icloud", "iCloud upload completed successfully", "success")
     else:
         log_step("upload_icloud", "iCloud upload failed", "error")
         sys.exit(1)

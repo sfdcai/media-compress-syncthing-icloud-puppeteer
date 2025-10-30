@@ -253,17 +253,19 @@ sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/s
 ```bash
 sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/prepare_bridge_batch.py
 ```
-- **What it does**: Prepares files for iCloud upload in `bridge/icloud/`
-- **Success check**: Files copied to `/mnt/wd_all_pictures/sync/bridge/icloud/`
+- **What it does**: Prepares compressed video files for iCloud upload in `bridge/icloud/`
+- **Success check**: Only video files (e.g. `.mp4`, `.mov`) copied to `/mnt/wd_all_pictures/sync/bridge/icloud/`
 - **Verify**: `ls -la /mnt/wd_all_pictures/sync/bridge/icloud/`
 
 **Command 10: iCloud Upload Test**
 ```bash
 sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/upload_icloud.py
 ```
-- **What it does**: Uploads files to iCloud using Puppeteer
+- **What it does**: Uploads compressed video files to iCloud Photos using Puppeteer
 - **Success check**: Files uploaded, moved to `uploaded/icloud/`
 - **Verify**: `ls -la /mnt/wd_all_pictures/sync/uploaded/icloud/`
+
+> 💡 **Selector diagnostics**: Set `ICLOUD_INTERACTIVE=true ICLOUD_INSPECT_UPLOAD=true` when running the command above to launch a visible browser, print all detected upload controls, and pause so you can inspect the UI manually before attempting an upload.
 
 **Command 11: Bridge Preparation Test (Pixel)**
 ```bash
@@ -485,6 +487,9 @@ All directory paths are configurable via environment variables:
 - `ENABLE_COMPRESSION`: Enable/disable media compression
 - `ENABLE_DEDUPLICATION`: Enable/disable duplicate removal
 - `ENABLE_SORTING`: Enable/disable post-upload sorting
+
+### Upload Diagnostics
+- `ICLOUD_INSPECT_UPLOAD`: When `true`, the iCloud uploader opens a diagnostic session, prints detected upload controls, and skips queueing files so you can adjust selectors safely.
 
 ### Compression Settings
 - `JPEG_QUALITY`: Image compression quality (default: 85)

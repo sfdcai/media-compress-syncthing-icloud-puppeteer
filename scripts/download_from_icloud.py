@@ -8,7 +8,24 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from utils import log_step, ensure_directory_exists, create_media_file_record, create_batch_record, update_batch_status, calculate_file_hash
+try:  # Support both package and direct script execution
+    from .utils import (
+        log_step,
+        ensure_directory_exists,
+        create_media_file_record,
+        create_batch_record,
+        update_batch_status,
+        calculate_file_hash,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        ensure_directory_exists,
+        create_media_file_record,
+        create_batch_record,
+        update_batch_status,
+        calculate_file_hash,
+    )
 
 def check_icloudpd_installed():
     """Check if icloudpd is installed and accessible"""
