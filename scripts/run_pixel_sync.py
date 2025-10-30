@@ -7,7 +7,10 @@ import os
 import sys
 import time
 from dotenv import load_dotenv
-from utils import log_step
+try:  # Support invocation as module or standalone script
+    from .utils import log_step
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import log_step  # type: ignore
 
 # Load environment variables
 load_dotenv("config/settings.env")

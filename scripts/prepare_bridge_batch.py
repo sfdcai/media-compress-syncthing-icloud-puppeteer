@@ -8,11 +8,26 @@ import os
 import sys
 import shutil
 from pathlib import Path
-from utils import (
-    log_step, get_file_size_gb, ensure_directory_exists, 
-    get_feature_toggle, create_batch_record, update_batch_status,
-    calculate_file_hash
-)
+try:  # Support both package and script execution styles
+    from .utils import (
+        log_step,
+        get_file_size_gb,
+        ensure_directory_exists,
+        get_feature_toggle,
+        create_batch_record,
+        update_batch_status,
+        calculate_file_hash,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        get_file_size_gb,
+        ensure_directory_exists,
+        get_feature_toggle,
+        create_batch_record,
+        update_batch_status,
+        calculate_file_hash,
+    )
 
 # Configuration
 MAX_PROCESSING_SIZE_GB = int(os.getenv("MAX_PROCESSING_SIZE_GB", 5))

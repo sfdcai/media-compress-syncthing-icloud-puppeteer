@@ -7,7 +7,10 @@ import os
 import shutil
 from pathlib import Path
 from dotenv import load_dotenv
-from utils import log_step
+try:  # Support both module and direct execution
+    from .utils import log_step
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import log_step  # type: ignore
 
 # Load environment variables
 load_dotenv("config/settings.env")
