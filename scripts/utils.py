@@ -135,6 +135,7 @@ def _store_local_batch(
     status: str,
     file_count: int,
     total_size_gb: float,
+    source_type: Optional[str],
     *,
     supabase_id: Optional[str],
     synced: bool,
@@ -146,6 +147,7 @@ def _store_local_batch(
             status=status,
             file_count=file_count,
             total_size_gb=total_size_gb,
+            source_type=source_type or batch_type,
             supabase_id=supabase_id,
             synced=synced,
         )
@@ -163,6 +165,7 @@ def _store_local_media(
     batch_id: Optional[str],
     source_path: Optional[str],
     processed_at: Optional[str],
+    source_type: Optional[str],
     *,
     supabase_id: Optional[str],
     synced: bool,
@@ -178,6 +181,7 @@ def _store_local_media(
             batch_id=batch_id,
             source_path=source_path,
             processed_at=processed_at,
+            source_type=source_type,
             supabase_id=supabase_id,
             synced=synced,
         )
@@ -404,15 +408,18 @@ def update_file_status(file_id, status, **kwargs):
         synced=supabase_success,
     )
 
-def create_batch_record(batch_type, file_count=0, total_size_gb=0):
+def create_batch_record(batch_type, file_count=0, total_size_gb=0, *, source_type: Optional[str] = None):
     """Create a new batch record, falling back to the local cache when required."""
 
     client = get_supabase_client()
+    resolved_source_type = source_type or batch_type
+
     batch_data = {
         "batch_type": batch_type,
         "status": "created",
         "file_count": file_count,
         "total_size_gb": total_size_gb,
+        "source_type": resolved_source_type,
     }
 
     if client:
@@ -432,6 +439,7 @@ def create_batch_record(batch_type, file_count=0, total_size_gb=0):
                     status="created",
                     file_count=file_count,
                     total_size_gb=total_size_gb,
+                    source_type=resolved_source_type,
                     supabase_id=batch_id,
                     synced=True,
                 )
@@ -454,6 +462,7 @@ def create_batch_record(batch_type, file_count=0, total_size_gb=0):
         status="created",
         file_count=file_count,
         total_size_gb=total_size_gb,
+        source_type=resolved_source_type,
         supabase_id=None,
         synced=False,
     )
@@ -576,7 +585,14 @@ def log_duplicate_file(original_file_id, duplicate_file_id, file_hash):
     except Exception as e:
         log_step("duplicate_logging", f"Failed to log duplicate: {e}", "error")
 
-def create_media_file_record(file_path, file_hash=None, batch_id=None, source_path=None):
+def create_media_file_record(
+    file_path,
+    file_hash=None,
+    batch_id=None,
+    source_path=None,
+    *,
+    source_type: str = "unknown",
+):
     """Create a new media file record, with an offline-safe fallback."""
 
     filename = os.path.basename(file_path)
@@ -614,6 +630,7 @@ def create_media_file_record(file_path, file_hash=None, batch_id=None, source_pa
                 "status": "downloaded",
                 "source_path": source_path or file_path,
                 "batch_id": batch_id,
+                "source_type": source_type,
                 "processed_at": "now()",
             }
 
@@ -639,6 +656,7 @@ def create_media_file_record(file_path, file_hash=None, batch_id=None, source_pa
                         batch_id=batch_id,
                         source_path=source_path or file_path,
                         processed_at=processed_at,
+                        source_type=source_type,
                         supabase_id=file_id,
                         synced=True,
                     )
@@ -669,6 +687,7 @@ def create_media_file_record(file_path, file_hash=None, batch_id=None, source_pa
         batch_id=batch_id,
         source_path=source_path or file_path,
         processed_at=processed_at,
+        source_type=source_type,
         supabase_id=None,
         synced=False,
     )

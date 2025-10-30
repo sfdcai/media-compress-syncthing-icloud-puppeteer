@@ -71,7 +71,8 @@ def backfill_originals_directory():
     batch_id = create_batch_record(
         batch_type="icloud_backfill",
         file_count=len(new_files),
-        total_size_gb=total_size_gb
+        total_size_gb=total_size_gb,
+        source_type="icloud_backfill",
     )
     
     if not batch_id:
@@ -85,13 +86,14 @@ def backfill_originals_directory():
     for i, file_path in enumerate(new_files, 1):
         try:
             print(f"Processing {i}/{len(new_files)}: {os.path.basename(file_path)}")
-            
+
             file_id = create_media_file_record(
                 file_path=file_path,
                 batch_id=batch_id,
-                source_path="iCloud"
+                source_path="iCloud",
+                source_type="icloud",
             )
-            
+
             if file_id:
                 tracked_count += 1
             else:

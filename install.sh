@@ -530,6 +530,9 @@ show_installation_summary() {
     echo "4. Start the service:"
     echo "   sudo systemctl start $SERVICE_NAME"
     echo
+    echo "5. Review the consolidated documentation:"
+    echo "   less $PIPELINE_DIR/README.md"
+    echo
     echo -e "${BLUE}Access Information:${NC}"
     local primary_ip=$(ip route get 8.8.8.8 | awk '{print $7; exit}' 2>/dev/null || echo "YOUR_IP")
     echo "• System IP: $primary_ip"

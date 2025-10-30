@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS batches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     batch_type TEXT CHECK (batch_type IN ('icloud','pixel')),
+    source_type TEXT,
     status TEXT CHECK (status IN ('created','uploading','uploaded','verified','error')),
     total_size_gb DECIMAL(10,2),
     file_count INTEGER,
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS media_files (
     compression_ratio DECIMAL(5,2),
     is_duplicate BOOLEAN DEFAULT FALSE,
     source_path TEXT,
+    source_type TEXT DEFAULT 'unknown',
     status TEXT CHECK (status IN ('downloaded','deduplicated','compressed','batched','uploaded','verified','error')),
     batch_id UUID REFERENCES batches(id),
     created_at TIMESTAMP DEFAULT NOW(),
