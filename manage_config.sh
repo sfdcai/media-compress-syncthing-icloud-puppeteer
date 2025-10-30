@@ -78,11 +78,15 @@ setup_config_directory() {
 create_template_env() {
     cat > "$ENV_FILE" << 'EOF'
 # Feature Toggles
+ENABLE_ICLOUD_DOWNLOAD=true
+ENABLE_FOLDER_DOWNLOAD=false
 ENABLE_ICLOUD_UPLOAD=true
 ENABLE_PIXEL_UPLOAD=true
 ENABLE_COMPRESSION=true
 ENABLE_DEDUPLICATION=true
+ENABLE_FILE_PREPARATION=true
 ENABLE_SORTING=true
+ENABLE_VERIFICATION=true
 
 # iCloud
 ICLOUD_USERNAME=your@email.com
@@ -145,6 +149,8 @@ ICLOUD_BATCH_SIZE=50
 PIXEL_SYNC_TIMEOUT=300
 UPLOAD_RETRY_ATTEMPTS=3
 UPLOAD_RETRY_DELAY=30
+# Persisted session cookies for Puppeteer uploads
+ICLOUD_SESSION_FILE=/opt/media-pipeline/.config/icloud_session.json
 
 # Simplified Processing Settings
 CLEAR_BRIDGE_BEFORE_PROCESSING=true

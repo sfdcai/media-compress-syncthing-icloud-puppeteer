@@ -330,11 +330,15 @@ def validate_config():
             )
 
     feature_toggles = [
+        "ENABLE_ICLOUD_DOWNLOAD",
+        "ENABLE_FOLDER_DOWNLOAD",
         "ENABLE_ICLOUD_UPLOAD",
         "ENABLE_PIXEL_UPLOAD",
         "ENABLE_COMPRESSION",
         "ENABLE_DEDUPLICATION",
+        "ENABLE_FILE_PREPARATION",
         "ENABLE_SORTING",
+        "ENABLE_VERIFICATION",
     ]
 
     # Validate feature toggles
