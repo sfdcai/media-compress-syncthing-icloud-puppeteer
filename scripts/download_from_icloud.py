@@ -178,7 +178,8 @@ def track_downloaded_files_in_database(originals_dir, batch_id=None):
             batch_id = create_batch_record(
                 batch_type="icloud",
                 file_count=len(media_files),
-                total_size_gb=sum(os.path.getsize(f) for f in media_files if os.path.exists(f)) / (1024**3)
+                total_size_gb=sum(os.path.getsize(f) for f in media_files if os.path.exists(f)) / (1024**3),
+                source_type="icloud",
             )
         
         # Track each file in database
@@ -188,7 +189,8 @@ def track_downloaded_files_in_database(originals_dir, batch_id=None):
                 file_id = create_media_file_record(
                     file_path=file_path,
                     batch_id=batch_id,
-                    source_path="iCloud"
+                    source_path="iCloud",
+                    source_type="icloud",
                 )
                 if file_id:
                     tracked_count += 1

@@ -10,8 +10,26 @@ import json
 import requests
 from pathlib import Path
 
+import pytest
+
 # Add the src directory to the path
 sys.path.append('/opt/media-pipeline/src')
+
+RUN_PROD_TESTS = os.environ.get("RUN_PROD_TESTS") == "1"
+pytestmark = pytest.mark.skipif(
+    not RUN_PROD_TESTS,
+    reason="Set RUN_PROD_TESTS=1 to enable Google Photos setup integration tests."
+)
+
+USING_PYTEST = "pytest" in sys.modules
+
+
+def _test_result(success, failure_message="Test reported failure"):
+    if USING_PYTEST:
+        if not success:
+            pytest.fail(failure_message)
+        return None
+    return success
 
 def test_credentials_loading():
     """Test if credentials are loaded correctly"""
@@ -26,13 +44,13 @@ def test_credentials_loading():
                 print(f"✅ Credentials file found: {credentials_file}")
                 print(f"✅ Client ID: {creds.get('client_id', 'Not found')[:20]}...")
                 print(f"✅ Client Secret: {creds.get('client_secret', 'Not found')[:10]}...")
-                return True
+                return _test_result(True)
         else:
             print(f"❌ Credentials file not found: {credentials_file}")
-            return False
+            return _test_result(False, "Google Photos credentials file not found")
     except Exception as e:
         print(f"❌ Error loading credentials: {e}")
-        return False
+        return _test_result(False, f"Error loading Google Photos credentials: {e}")
 
 def test_environment_variables():
     """Test if environment variables are set correctly"""
@@ -44,30 +62,35 @@ def test_environment_variables():
         if os.path.exists(settings_file):
             with open(settings_file, 'r') as f:
                 content = f.read()
-                
+
+            success = True
+
             # Check for Google Photos settings
             if 'ENABLE_GOOGLE_PHOTOS_SYNC_CHECK=true' in content:
                 print("✅ ENABLE_GOOGLE_PHOTOS_SYNC_CHECK is enabled")
             else:
                 print("❌ ENABLE_GOOGLE_PHOTOS_SYNC_CHECK is not enabled")
-                
+                success = False
+
             if 'GOOGLE_PHOTOS_CLIENT_ID=' in content and 'GOOGLE_PHOTOS_CLIENT_ID=1026727790585' in content:
                 print("✅ GOOGLE_PHOTOS_CLIENT_ID is set")
             else:
                 print("❌ GOOGLE_PHOTOS_CLIENT_ID is not set correctly")
-                
+                success = False
+
             if 'GOOGLE_PHOTOS_CLIENT_SECRET=' in content and 'GOOGLE_PHOTOS_CLIENT_SECRET=GOCSPX-' in content:
                 print("✅ GOOGLE_PHOTOS_CLIENT_SECRET is set")
             else:
                 print("❌ GOOGLE_PHOTOS_CLIENT_SECRET is not set correctly")
-                
-            return True
+                success = False
+
+            return _test_result(success, "Google Photos environment variables are not configured correctly")
         else:
             print(f"❌ Settings file not found: {settings_file}")
-            return False
+            return _test_result(False, "Settings file not found for Google Photos configuration")
     except Exception as e:
         print(f"❌ Error checking environment variables: {e}")
-        return False
+        return _test_result(False, f"Error checking Google Photos environment variables: {e}")
 
 def test_authorization_url():
     """Test if authorization URL can be generated"""
@@ -104,11 +127,11 @@ def test_authorization_url():
         print("4. Copy the authorization code")
         print("5. Run: python3 scripts/google_photos_sync_checker.py setup")
         print("6. Paste the authorization code when prompted")
-        
-        return True
+
+        return _test_result(True)
     except Exception as e:
         print(f"❌ Error generating authorization URL: {e}")
-        return False
+        return _test_result(False, f"Error generating authorization URL: {e}")
 
 def test_sync_checker_import():
     """Test if the sync checker can be imported"""
@@ -120,17 +143,17 @@ def test_sync_checker_import():
         
         checker = GooglePhotosSyncChecker()
         print("✅ GooglePhotosSyncChecker imported successfully")
-        
+
         # Test credential loading
         if checker.load_credentials():
             print("✅ Credentials loaded successfully")
-        else:
-            print("❌ Failed to load credentials")
-            
-        return True
+            return _test_result(True)
+
+        print("❌ Failed to load credentials")
+        return _test_result(False, "Google Photos credentials failed to load")
     except Exception as e:
         print(f"❌ Error importing sync checker: {e}")
-        return False
+        return _test_result(False, f"Error importing Google Photos sync checker: {e}")
 
 def test_pipeline_integration():
     """Test if pipeline integration is working"""
@@ -142,24 +165,26 @@ def test_pipeline_integration():
         if os.path.exists(verify_file):
             with open(verify_file, 'r') as f:
                 content = f.read()
-                
+
             if 'def verify_google_photos_sync():' in content:
                 print("✅ Google Photos sync function found in verification processor")
             else:
                 print("❌ Google Photos sync function not found in verification processor")
-                
+                return _test_result(False, "verify_google_photos_sync function missing in processor")
+
             if 'verify_google_photos_sync()' in content:
                 print("✅ Google Photos sync function is called in main pipeline")
             else:
                 print("❌ Google Photos sync function is not called in main pipeline")
-                
-            return True
+                return _test_result(False, "verify_google_photos_sync not invoked in pipeline")
+
+            return _test_result(True)
         else:
             print(f"❌ Verification processor not found: {verify_file}")
-            return False
+            return _test_result(False, "Verification processor missing for Google Photos sync")
     except Exception as e:
         print(f"❌ Error checking pipeline integration: {e}")
-        return False
+        return _test_result(False, f"Error checking Google Photos pipeline integration: {e}")
 
 def main():
     """Main test function"""

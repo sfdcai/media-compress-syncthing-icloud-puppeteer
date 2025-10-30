@@ -91,6 +91,7 @@ def process_file_deduplication(file_path, duplicates_dir, hash_algorithm="md5"):
                 file_path=file_path,
                 file_hash=file_hash,
                 source_path=file_path,
+                source_type="deduplication",
             )
 
             if not record_id:

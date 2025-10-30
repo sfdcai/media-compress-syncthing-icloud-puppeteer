@@ -45,6 +45,8 @@ except ImportError:
     print("Run: sudo -u media-pipeline /opt/media-pipeline/venv/bin/pip install supabase")
     sys.exit(1)
 
+from supabase_schema import INDEXES, TABLES
+
 def print_status(status, message):
     """Print colored status messages"""
     colors = {
@@ -59,116 +61,8 @@ def create_tables(supabase):
     """Create all required tables"""
     print_status("INFO", "Creating database tables...")
     
-    # SQL commands to create tables
-    sql_commands = [
-        # Enhanced media_files table
-        """
-        CREATE TABLE IF NOT EXISTS media_files (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            filename TEXT NOT NULL,
-            file_path TEXT NOT NULL,
-            file_size BIGINT,
-            file_hash TEXT,
-            compression_ratio DECIMAL(5,2),
-            is_duplicate BOOLEAN DEFAULT FALSE,
-            source_path TEXT,
-            status TEXT CHECK (status IN ('downloaded','deduplicated','compressed','batched','uploaded','verified','error')),
-            batch_id UUID,
-            created_at TIMESTAMP DEFAULT NOW(),
-            processed_at TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT NOW()
-        );
-        """,
-        
-        # Enhanced batches table
-        """
-        CREATE TABLE IF NOT EXISTS batches (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            batch_type TEXT CHECK (batch_type IN ('icloud','pixel')),
-            status TEXT CHECK (status IN ('created','uploading','uploaded','verified','error')),
-            total_size_gb DECIMAL(10,2),
-            file_count INTEGER,
-            created_at TIMESTAMP DEFAULT NOW(),
-            completed_at TIMESTAMP
-        );
-        """,
-        
-        # Duplicate files tracking (renamed from duplicates)
-        """
-        CREATE TABLE IF NOT EXISTS duplicates (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            original_file_id UUID REFERENCES media_files(id),
-            duplicate_file_id UUID REFERENCES media_files(id),
-            hash TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        """,
-        
-        # Upload logs
-        """
-        CREATE TABLE IF NOT EXISTS upload_logs (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            file_id UUID REFERENCES media_files(id),
-            upload_type TEXT CHECK (upload_type IN ('icloud','pixel')),
-            status TEXT CHECK (status IN ('pending','uploading','uploaded','failed')),
-            error_message TEXT,
-            created_at TIMESTAMP DEFAULT NOW(),
-            completed_at TIMESTAMP
-        );
-        """,
-        
-        # Batch logs
-        """
-        CREATE TABLE IF NOT EXISTS batch_logs (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            batch_type TEXT CHECK (batch_type IN ('icloud','pixel')),
-            file_count INTEGER,
-            total_size_gb DECIMAL(10,2),
-            status TEXT CHECK (status IN ('created','processing','completed','failed')),
-            created_at TIMESTAMP DEFAULT NOW(),
-            completed_at TIMESTAMP
-        );
-        """,
-        
-        # Compression logs
-        """
-        CREATE TABLE IF NOT EXISTS compression_logs (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            original_file_id UUID REFERENCES media_files(id),
-            compressed_file_id UUID REFERENCES media_files(id),
-            compression_ratio DECIMAL(5,2),
-            original_size BIGINT,
-            compressed_size BIGINT,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        """,
-        
-        # Pipeline logs
-        """
-        CREATE TABLE IF NOT EXISTS pipeline_logs (
-            id BIGSERIAL PRIMARY KEY,
-            step TEXT NOT NULL,
-            message TEXT NOT NULL,
-            status TEXT CHECK (status IN ('info','success','error','warning')),
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-        """
-    ]
-    
-    # Create indexes
-    index_commands = [
-        "CREATE INDEX IF NOT EXISTS idx_media_files_hash ON media_files(file_hash);",
-        "CREATE INDEX IF NOT EXISTS idx_media_files_status ON media_files(status);",
-        "CREATE INDEX IF NOT EXISTS idx_media_files_batch_id ON media_files(batch_id);",
-        "CREATE INDEX IF NOT EXISTS idx_duplicates_hash ON duplicates(hash);",
-        "CREATE INDEX IF NOT EXISTS idx_upload_logs_file_id ON upload_logs(file_id);",
-        "CREATE INDEX IF NOT EXISTS idx_upload_logs_status ON upload_logs(status);",
-        "CREATE INDEX IF NOT EXISTS idx_batch_logs_status ON batch_logs(status);",
-        "CREATE INDEX IF NOT EXISTS idx_compression_logs_original ON compression_logs(original_file_id);",
-        "CREATE INDEX IF NOT EXISTS idx_pipeline_logs_step ON pipeline_logs(step);",
-        "CREATE INDEX IF NOT EXISTS idx_pipeline_logs_status ON pipeline_logs(status);"
-    ]
-    
+    sql_commands = list(TABLES.values())
+
     try:
         # Execute table creation commands
         for i, sql in enumerate(sql_commands, 1):
@@ -178,7 +72,7 @@ def create_tables(supabase):
         
         # Execute index creation commands
         print_status("INFO", "Creating indexes...")
-        for i, sql in enumerate(index_commands, 1):
+        for i, sql in enumerate(INDEXES, 1):
             result = supabase.rpc('exec_sql', {'sql': sql})
             print_status("SUCCESS", f"Index {i} created successfully")
         
@@ -193,12 +87,7 @@ def test_tables(supabase):
     """Test that all tables exist and are accessible"""
     print_status("INFO", "Testing table access...")
     
-    tables_to_test = [
-        'media_files',
-        'batches',
-        'duplicate_files',
-        'pipeline_logs'
-    ]
+    tables_to_test = list(TABLES.keys())
     
     all_good = True
     

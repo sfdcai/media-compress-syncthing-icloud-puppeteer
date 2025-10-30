@@ -10,6 +10,8 @@ import time
 import subprocess
 from pathlib import Path
 
+import pytest
+
 def run_command(command, description):
     """Run a command and return success status"""
     print(f"\n🔄 {description}")
@@ -34,6 +36,23 @@ def run_command(command, description):
     except Exception as e:
         print(f"💥 {description} - EXCEPTION: {e}")
         return False
+
+RUN_PROD_TESTS = os.environ.get("RUN_PROD_TESTS") == "1"
+pytestmark = pytest.mark.skipif(
+    not RUN_PROD_TESTS,
+    reason="Set RUN_PROD_TESTS=1 to enable production pipeline integration tests."
+)
+
+USING_PYTEST = "pytest" in sys.modules
+
+
+def _test_result(success, failure_message="Test reported failure"):
+    """Convert boolean results into pytest outcomes while preserving CLI usage."""
+    if USING_PYTEST:
+        if not success:
+            pytest.fail(failure_message)
+        return None
+    return success
 
 def check_file_exists(file_path, description):
     """Check if a file exists"""
@@ -75,7 +94,7 @@ def test_system_requirements():
     for command, description in tests:
         results.append(run_command(command, description))
     
-    return all(results)
+    return _test_result(all(results), "One or more system requirement checks failed")
 
 def test_configuration():
     """Test configuration"""
@@ -85,7 +104,7 @@ def test_configuration():
     
     config_file = "/opt/media-pipeline/config/settings.env"
     if not check_file_exists(config_file, "Configuration file"):
-        return False
+        return _test_result(False, "Configuration file is missing")
     
     # Check for required environment variables
     required_vars = [
@@ -107,14 +126,14 @@ def test_configuration():
         
         if missing_vars:
             print(f"❌ Missing required environment variables: {missing_vars}")
-            return False
-        else:
-            print("✅ All required environment variables present")
-            return True
-            
+            return _test_result(False, "Required environment variables are missing")
+
+        print("✅ All required environment variables present")
+        return _test_result(True)
+
     except Exception as e:
         print(f"❌ Error reading configuration: {e}")
-        return False
+        return _test_result(False, f"Error reading configuration: {e}")
 
 def test_database_connection():
     """Test database connection"""
@@ -122,9 +141,12 @@ def test_database_connection():
     print("🧪 TESTING DATABASE CONNECTION")
     print("="*60)
     
-    return run_command(
+    return _test_result(
+        run_command(
         "sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/setup_supabase_tables.py",
         "Supabase database connection and table setup"
+    ),
+        "Supabase database setup failed"
     )
 
 def test_icloud_authentication():
@@ -133,9 +155,12 @@ def test_icloud_authentication():
     print("🧪 TESTING iCLOUD AUTHENTICATION")
     print("="*60)
     
-    return run_command(
+    return _test_result(
+        run_command(
         "sudo -u media-pipeline /opt/media-pipeline/venv/bin/icloudpd --username test@icloud.com --list-albums",
         "iCloud authentication test"
+    ),
+        "iCloud authentication command failed"
     )
 
 def test_download_phase():
@@ -152,7 +177,7 @@ def test_download_phase():
     if success:
         check_directory_contents("/mnt/wd_all_pictures/sync/originals", "Originals directory")
     
-    return success
+    return _test_result(success, "Download phase command failed")
 
 def test_compression_phase():
     """Test compression phase"""
@@ -168,7 +193,7 @@ def test_compression_phase():
     if success:
         check_directory_contents("/mnt/wd_all_pictures/sync/compressed", "Compressed directory")
     
-    return success
+    return _test_result(success, "Compression phase command failed")
 
 def test_deduplication_phase():
     """Test deduplication phase"""
@@ -176,9 +201,12 @@ def test_deduplication_phase():
     print("🧪 TESTING DEDUPLICATION PHASE")
     print("="*60)
     
-    return run_command(
+    return _test_result(
+        run_command(
         "sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/deduplicate.py",
         "Deduplication"
+    ),
+        "Deduplication command failed"
     )
 
 def test_file_preparation():
@@ -196,7 +224,7 @@ def test_file_preparation():
         check_directory_contents("/mnt/wd_all_pictures/sync/bridge/icloud", "iCloud bridge directory")
         check_directory_contents("/mnt/wd_all_pictures/sync/bridge/pixel", "Pixel bridge directory")
     
-    return success
+    return _test_result(success, "File preparation command failed")
 
 def test_icloud_upload():
     """Test iCloud upload"""
@@ -220,7 +248,7 @@ def test_icloud_upload():
         "iCloud upload test"
     )
     
-    return success
+    return _test_result(success, "iCloud upload verification failed")
 
 def test_pixel_sync():
     """Test Pixel sync"""
@@ -228,9 +256,12 @@ def test_pixel_sync():
     print("🧪 TESTING PIXEL SYNC")
     print("="*60)
     
-    return run_command(
+    return _test_result(
+        run_command(
         "sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/sync_to_pixel.py",
         "Pixel sync via Syncthing"
+    ),
+        "Pixel sync command failed"
     )
 
 def test_sorting():
@@ -247,7 +278,7 @@ def test_sorting():
     if success:
         check_directory_contents("/mnt/wd_all_pictures/sync/sorted", "Sorted directory")
     
-    return success
+    return _test_result(success, "Sorting command failed")
 
 def test_cleanup():
     """Test cleanup"""
@@ -255,9 +286,12 @@ def test_cleanup():
     print("🧪 TESTING CLEANUP")
     print("="*60)
     
-    return run_command(
+    return _test_result(
+        run_command(
         "sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/verify_and_cleanup.py",
         "Verification and cleanup"
+    ),
+        "Cleanup command failed"
     )
 
 def test_complete_pipeline():
@@ -266,9 +300,12 @@ def test_complete_pipeline():
     print("🧪 TESTING COMPLETE PIPELINE")
     print("="*60)
     
-    return run_command(
+    return _test_result(
+        run_command(
         "sudo -u media-pipeline /opt/media-pipeline/venv/bin/python /opt/media-pipeline/scripts/run_pipeline.py",
         "Complete pipeline execution"
+    ),
+        "Complete pipeline execution failed"
     )
 
 def main():
