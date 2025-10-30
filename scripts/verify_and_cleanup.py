@@ -9,11 +9,26 @@ import sys
 import shutil
 import time
 from pathlib import Path
-from utils import (
-    log_step, get_feature_toggle, ensure_directory_exists,
-    get_file_size_gb, calculate_file_hash, update_batch_status,
-    get_files_by_status
-)
+try:  # Allow running both as module and as standalone script
+    from .utils import (
+        log_step,
+        get_feature_toggle,
+        ensure_directory_exists,
+        get_file_size_gb,
+        calculate_file_hash,
+        update_batch_status,
+        get_files_by_status,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        get_feature_toggle,
+        ensure_directory_exists,
+        get_file_size_gb,
+        calculate_file_hash,
+        update_batch_status,
+        get_files_by_status,
+    )
 
 def get_batch_directories(batch_dir):
     """Get all batch directories"""

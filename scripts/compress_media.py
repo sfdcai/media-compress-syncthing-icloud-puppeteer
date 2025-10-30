@@ -10,10 +10,24 @@ import subprocess
 import time
 from pathlib import Path
 from PIL import Image
-from utils import (
-    log_step, get_file_size_gb, ensure_directory_exists, 
-    get_feature_toggle, retry, calculate_file_hash
-)
+try:  # Allow running both as part of package and as standalone script
+    from .utils import (
+        log_step,
+        get_file_size_gb,
+        ensure_directory_exists,
+        get_feature_toggle,
+        retry,
+        calculate_file_hash,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        get_file_size_gb,
+        ensure_directory_exists,
+        get_feature_toggle,
+        retry,
+        calculate_file_hash,
+    )
 
 # Configuration
 JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", 85))

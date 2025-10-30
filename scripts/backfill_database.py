@@ -7,10 +7,22 @@ import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
-from utils import (
-    log_step, create_media_file_record, create_batch_record, 
-    calculate_file_hash, get_media_files_by_directory
-)
+try:  # Support both "python scripts/..." and "python -m scripts..."
+    from .utils import (
+        log_step,
+        create_media_file_record,
+        create_batch_record,
+        calculate_file_hash,
+        get_media_files_by_directory,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        create_media_file_record,
+        create_batch_record,
+        calculate_file_hash,
+        get_media_files_by_directory,
+    )
 
 # Load environment variables
 load_dotenv("config/settings.env")

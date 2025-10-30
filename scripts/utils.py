@@ -13,13 +13,24 @@ from typing import Optional, Set
 from dotenv import load_dotenv
 from supabase import create_client
 
-from local_db_manager import (
-    generate_local_id,
-    save_batch_record,
-    save_media_file_record,
-    update_batch_status_local,
-    update_media_status_local,
-)
+try:  # Support both package and script execution
+    from .local_db_manager import (
+        generate_local_id,
+        media_hash_exists,
+        save_batch_record,
+        save_media_file_record,
+        update_batch_status_local,
+        update_media_status_local,
+    )
+except ImportError:  # pragma: no cover - fallback for direct script execution
+    from local_db_manager import (  # type: ignore
+        generate_local_id,
+        media_hash_exists,
+        save_batch_record,
+        save_media_file_record,
+        update_batch_status_local,
+        update_media_status_local,
+    )
 
 # Load environment variables
 # Try multiple paths to find the config file
@@ -39,7 +50,7 @@ for config_path in config_paths:
 if not config_loaded:
     print(f"Warning: Could not find config file. Tried: {config_paths}")
 
-# Supabase configuration
+# Supabase configuration (initial values refreshed lazily in get_supabase_client)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
@@ -50,14 +61,19 @@ _supabase_unavailable_messages: Set[str] = set()
 
 def get_supabase_client(force_refresh: bool = False):
     """Lazily instantiate the Supabase client."""
-    global _supabase_client, _supabase_init_attempted
+    global _supabase_client, _supabase_init_attempted, SUPABASE_URL, SUPABASE_KEY
 
     if force_refresh:
+        SUPABASE_URL = os.getenv("SUPABASE_URL")
+        SUPABASE_KEY = os.getenv("SUPABASE_KEY")
         _supabase_init_attempted = False
         _supabase_client = None
 
     if _supabase_client is not None:
         return _supabase_client
+
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
     if _supabase_init_attempted:
         return _supabase_client
@@ -251,53 +267,97 @@ def ensure_proper_permissions(file_path, user="media-pipeline", group="media-pip
         log_step("permissions", f"Failed to set permissions for {file_path}: {e}", "error")
 
 def validate_mount_points():
-    """Validate NAS and Syncthing mount points"""
+    """Validate NAS and Syncthing mount points."""
+
+    success = True
     mount_points = [
         os.getenv("NAS_MOUNT", "/mnt/nas/photos"),
-        os.getenv("PIXEL_SYNC_FOLDER", "/mnt/syncthing/pixel")
+        os.getenv("PIXEL_SYNC_FOLDER", "/mnt/syncthing/pixel"),
     ]
-    
+
     for mount_point in mount_points:
+        if not mount_point:
+            continue
+
         if not os.path.exists(mount_point):
-            log_step("mount_validation", f"Mount point {mount_point} does not exist", "error")
-            return False
-        
+            log_step(
+                "mount_validation",
+                f"Mount point {mount_point} does not exist; it will be created if needed",
+                "warning",
+            )
+            continue
+
         if not os.access(mount_point, os.W_OK):
-            log_step("mount_validation", f"Mount point {mount_point} is not writable", "error")
-            return False
-    
-    return True
+            log_step(
+                "mount_validation",
+                f"Mount point {mount_point} is not writable",
+                "error",
+            )
+            success = False
+
+    return success
 
 def validate_config():
-    """Validate all configuration settings and feature toggles"""
-    required_settings = [
-        'SUPABASE_URL', 'SUPABASE_KEY', 'NAS_MOUNT', 'PIXEL_SYNC_FOLDER'
-    ]
-    
-    feature_toggles = [
-        'ENABLE_ICLOUD_UPLOAD', 'ENABLE_PIXEL_UPLOAD', 
-        'ENABLE_COMPRESSION', 'ENABLE_DEDUPLICATION', 'ENABLE_SORTING'
-    ]
-    
-    # Validate required settings
-    for setting in required_settings:
+    """Validate configuration settings, tolerating optional dependencies."""
+
+    success = True
+
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_KEY")
+    if not supabase_url or not supabase_key:
+        log_step(
+            "config_validation",
+            "Supabase credentials are not set; operating in offline mode",
+            "warning",
+        )
+    else:
+        log_step("config_validation", "Supabase credentials detected", "info")
+
+    defaults = {
+        "NAS_MOUNT": "/opt/media-pipeline",
+        "PIXEL_SYNC_FOLDER": "/mnt/syncthing/pixel",
+    }
+    for setting, default_value in defaults.items():
         if not os.getenv(setting):
-            log_step("config_validation", f"Required setting {setting} is missing", "error")
-            return False
-    
+            log_step(
+                "config_validation",
+                f"{setting} not set; defaulting to {default_value}",
+                "warning",
+            )
+
+    feature_toggles = [
+        "ENABLE_ICLOUD_UPLOAD",
+        "ENABLE_PIXEL_UPLOAD",
+        "ENABLE_COMPRESSION",
+        "ENABLE_DEDUPLICATION",
+        "ENABLE_SORTING",
+    ]
+
     # Validate feature toggles
     for toggle in feature_toggles:
         value = os.getenv(toggle, "true").lower()
         if value not in ["true", "false"]:
-            log_step("config_validation", f"Invalid value for {toggle}: {value}", "error")
-            return False
-    
-    # Validate mount points
+            log_step(
+                "config_validation",
+                f"Invalid value for {toggle}: {value}",
+                "error",
+            )
+            success = False
+
+    # Validate mount points (warnings already emitted inside the helper)
     if not validate_mount_points():
-        return False
-    
-    log_step("config_validation", "Configuration validation passed", "success")
-    return True
+        success = False
+
+    if success:
+        log_step("config_validation", "Configuration validation passed", "success")
+    else:
+        log_step(
+            "config_validation",
+            "Configuration validation completed with warnings or errors",
+            "warning",
+        )
+
+    return success
 
 def get_feature_toggle(toggle_name, default=True):
     """Get feature toggle value"""
@@ -463,22 +523,35 @@ def get_files_by_status(status):
         return []
 
 def is_duplicate_file(file_hash):
-    """Check if file hash already exists in database"""
-    client = get_supabase_client()
-    if not client:
-        _log_supabase_unavailable("duplicate check")
-        logging.debug(
-            "Supabase unavailable when checking duplicate for hash %s",
-            file_hash,
-        )
+    """Check if file hash already exists in Supabase or the local cache."""
+
+    if not file_hash:
         return False
 
-    try:
-        result = client.table("media_files").select("id").eq("file_hash", file_hash).execute()
-        return len(result.data) > 0
-    except Exception as e:
-        log_step("duplicate_check", f"Failed to check duplicate for hash {file_hash}: {e}", "error")
-        return False
+    client = get_supabase_client()
+    if client:
+        try:
+            result = (
+                client.table("media_files")
+                .select("id")
+                .eq("file_hash", file_hash)
+                .execute()
+            )
+            if len(result.data) > 0:
+                return True
+        except Exception as e:
+            log_step(
+                "duplicate_check",
+                f"Failed to check duplicate for hash {file_hash}: {e}",
+                "error",
+            )
+    else:
+        _log_supabase_unavailable("duplicate check")
+
+    exists_locally = media_hash_exists(file_hash)
+    if exists_locally:
+        logging.debug("Local cache reports existing hash %s", file_hash)
+    return exists_locally
 
 def log_duplicate_file(original_file_id, duplicate_file_id, file_hash):
     """Log duplicate file relationship"""
