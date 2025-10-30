@@ -26,17 +26,18 @@ const SELECTORS_FILE = path.resolve('./scripts/icloud_selectors.json');
 let selectors;
 try {
   selectors = JSON.parse(fs.readFileSync(SELECTORS_FILE, 'utf8'));
-} catch (error) {
+  } catch (error) {
   console.error('Error loading selectors file:', error);
   process.exit(1);
 }
 
 // Config
 const ICLOUD_PHOTOS_URL = 'https://www.icloud.com/photos/';
-const UPLOAD_WAIT_MS = 120000; // wait up to 2 minutes for uploads to appear
+const UPLOAD_WAIT_MS = 300000; // wait up to 5 minutes for uploads to appear
 const BATCH_SIZE = 20; // change as needed
 const MAX_RETRIES = 3;
 const HEADLESS_DEFAULT = true;
+const SUPPORTED_EXTENSIONS = /\.(jpe?g|png|heic|heif|gif|tiff?|dng|webp|mp4|mov|avi|mpe?g|m4v|3gp|zip|tar|t?gz|rar|7z)$/i;
 
 function sha256File(filePath) {
   const hash = crypto.createHash('sha256');
@@ -79,28 +80,60 @@ function moveFileToDir(file, destDir) {
 
 async function waitForUploadCountIncrease(page, beforeCount, expectedIncrease, timeoutMs) {
   const start = Date.now();
+  let lastCount = beforeCount;
+
   while (Date.now() - start < timeoutMs) {
-    // Count thumbnails - selector may need adjustment over time
-    const count = await page.evaluate(() => {
-      // Attempt to count photo tiles; site structure may change.
-      // This is a heuristic: count nodes that resemble photo items.
-      const grid = document.querySelectorAll('[role="grid"] img, .photoTile, .photo-item, .thumb');
-      return grid ? grid.length : document.querySelectorAll('img').length;
-    }).catch(() => 0);
-    console.log(`Current gallery count: ${count}, waiting for ${beforeCount + expectedIncrease}`);
-    if (count >= beforeCount + expectedIncrease) return true;
+    try {
+      const { count, pendingUploads } = await page.evaluate(() => {
+        const candidateNodes = document.querySelectorAll('[role="grid"] [role="gridcell"], .photoTile, .photo-item, [data-testid*="tile"]');
+        const uploadIndicators = document.querySelectorAll('[data-testid*="upload"], [class*="upload"], [aria-live="polite"]');
+        return {
+          count: candidateNodes ? candidateNodes.length : document.querySelectorAll('img').length,
+          pendingUploads: uploadIndicators ? uploadIndicators.length : 0,
+        };
+      });
+
+      if (count !== lastCount) {
+        console.log(`Gallery tile count: ${count} (was ${lastCount}), pending indicators: ${pendingUploads}`);
+        lastCount = count;
+      }
+
+      if (count >= beforeCount + expectedIncrease) {
+        console.log('Detected expected increase in gallery items.');
+        return true;
+      }
+
+      if (selectors?.waitSelectors?.uploadComplete) {
+        const completeVisible = await page.$eval(selectors.waitSelectors.uploadComplete, () => true).catch(() => false);
+        if (completeVisible && pendingUploads === 0 && count >= beforeCount) {
+          console.log('Upload completion indicator detected.');
+          return true;
+        }
+      }
+    } catch (error) {
+      console.log('Gallery polling error, retrying:', error.message);
+    }
+
     await new Promise(r => setTimeout(r, 2000));
   }
+
   return false;
 }
 
 async function getGalleryCount(page) {
-  // Heuristic: count likely photo thumbnails
-  const count = await page.evaluate(() => {
-    const gridCandidates = document.querySelectorAll('[role="grid"] img, .photoTile, .photo-item, .thumb');
-    return gridCandidates ? gridCandidates.length : document.querySelectorAll('img').length;
-  });
-  return count || 0;
+  try {
+    const count = await page.evaluate(() => {
+      const gridCandidates = document.querySelectorAll('[role="grid"] [role="gridcell"], .photoTile, .photo-item, [data-testid*="tile"]');
+      if (gridCandidates && gridCandidates.length) {
+        return gridCandidates.length;
+      }
+      return document.querySelectorAll('img').length;
+    });
+    return count || 0;
+  } catch (error) {
+    console.log('Failed to determine gallery count:', error.message);
+    return 0;
+  }
 }
 
 async function openICloudPhotos(page, interactive) {
@@ -167,148 +200,175 @@ async function openICloudPhotos(page, interactive) {
   }
 }
 
-async function findFileInputAndUpload(page, files) {
-  console.log('Attempting to find upload control...');
-  
-  try {
-    // First, let's see what's available on the page
-    const availableElements = await page.evaluate(() => {
-      const buttons = Array.from(document.querySelectorAll('button')).map(btn => ({
-        tagName: btn.tagName,
-        textContent: btn.textContent?.trim(),
-        ariaLabel: btn.getAttribute('aria-label'),
-        title: btn.getAttribute('title'),
-        className: btn.className,
-        id: btn.id,
-        dataTestId: btn.getAttribute('data-testid')
-      }));
-      
-      const inputs = Array.from(document.querySelectorAll('input')).map(input => ({
-        tagName: input.tagName,
-        type: input.type,
-        className: input.className,
-        id: input.id,
-        dataTestId: input.getAttribute('data-testid')
-      }));
-      
-      return { buttons, inputs };
-    });
-    
-    console.log('Available buttons:', availableElements.buttons.length);
-    console.log('Available inputs:', availableElements.inputs.length);
-    
-    // Log detailed button information for debugging
-    console.log('\n=== DETAILED BUTTON ANALYSIS ===');
-    availableElements.buttons.forEach((btn, i) => {
-      console.log(`\nButton ${i}:`);
-      console.log(`  Text: "${btn.textContent}"`);
-      console.log(`  Aria Label: "${btn.ariaLabel}"`);
-      console.log(`  Title: "${btn.title}"`);
-      console.log(`  Class: "${btn.className}"`);
-      console.log(`  ID: "${btn.id}"`);
-      console.log(`  Data Test ID: "${btn.dataTestId}"`);
-    });
-    console.log('\n=== END BUTTON ANALYSIS ===\n');
+async function locateUploadButton(page) {
+  const candidates = [
+    'pierce/ui-button.UploadButton',
+    'pierce/ui-button[aria-label="Upload"]',
+    'pierce/ui-toolbar-button[name="upload"]',
+    'pierce/[data-testid="upload-button"]',
+    'pierce/button[aria-label="Upload"]',
+    'pierce/button[data-testid*="upload"]',
+  ];
 
-    // Attempt 1: Try to find and click upload button with file chooser
-    const uploadButtonSelectors = selectors.uploadButtonSelectors;
-    console.log(`Trying ${uploadButtonSelectors.length} upload button selectors...`);
-
-    for (let i = 0; i < uploadButtonSelectors.length; i++) {
-      const sel = uploadButtonSelectors[i];
-      console.log(`Trying selector ${i + 1}/${uploadButtonSelectors.length}: ${sel}`);
-      
-      const elements = await page.$$(sel);
-      if (elements.length > 0) {
-        console.log(`Found ${elements.length} element(s) with selector: ${sel}`);
-        
-        for (let j = 0; j < elements.length; j++) {
-          const el = elements[j];
-          try {
-            // Get element details
-            const elementInfo = await page.evaluate(el => ({
-              textContent: el.textContent?.trim(),
-              ariaLabel: el.getAttribute('aria-label'),
-              title: el.getAttribute('title'),
-              className: el.className,
-              visible: el.offsetParent !== null
-            }), el);
-            
-            console.log(`Element ${j + 1} info:`, elementInfo);
-            
-            if (elementInfo.visible) {
-              console.log(`Attempting to click element ${j + 1}...`);
-              
-              const [fileChooser] = await Promise.all([
-                page.waitForFileChooser({ timeout: 10000 }),
-                el.click()
-              ]);
-              
-              if (fileChooser) {
-                console.log('File chooser opened, accepting files...');
-                await fileChooser.accept(files);
-                console.log('Files accepted successfully!');
-                return true;
-              }
-            }
-          } catch (e) {
-            console.log(`Failed to click element ${j + 1}:`, e.message);
-          }
+  for (const selector of candidates) {
+    try {
+      const handle = await page.waitForSelector(selector, { timeout: 2500 });
+      if (handle) {
+        const visible = await handle.evaluate(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+        if (visible) {
+          console.log(`Found upload button using selector: ${selector}`);
+          return { handle, selector };
         }
+        await handle.dispose();
+      }
+    } catch (_) {
+      // try next selector
+    }
+  }
+
+  if (selectors?.uploadButtonSelectors?.length) {
+    for (const selector of selectors.uploadButtonSelectors) {
+      try {
+        const handle = await page.$(selector);
+        if (handle) {
+          const visible = await handle.evaluate(el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+          if (visible) {
+            console.log(`Found upload button using fallback selector: ${selector}`);
+            return { handle, selector };
+          }
+          await handle.dispose();
+        }
+      } catch (_) {
+        // continue
       }
     }
+  }
 
-    // Attempt 2: directly find input[type=file] and upload
-    console.log('Trying direct file input upload...');
-    const fileInputs = await page.$$('input[type=file]');
-    if (fileInputs.length) {
-      console.log(`Found ${fileInputs.length} file input(s)`);
-      await fileInputs[0].uploadFile(...files);
-      console.log('Files uploaded via direct input!');
+  return null;
+}
+
+async function locateUploadInput(page) {
+  const directSelectors = [
+    'pierce/input[type="file"][multiple]',
+    'pierce/input[type="file"]',
+    'input[type="file"]',
+  ];
+
+  for (const selector of directSelectors) {
+    try {
+      const handle = await page.waitForSelector(selector, { timeout: 2000 });
+      if (handle) {
+        console.log(`Resolved file input using selector: ${selector}`);
+        return { handle, origin: selector };
+      }
+    } catch (_) {
+      // try next
+    }
+  }
+
+  try {
+    const handle = await page.evaluateHandle(() => {
+      const visited = new WeakSet();
+      const queue = [];
+      if (document) queue.push(document);
+
+      while (queue.length) {
+        const node = queue.shift();
+        if (!node || visited.has(node)) continue;
+        visited.add(node);
+
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node;
+          if (el.tagName === 'INPUT' && el.type === 'file') {
+            return el;
+          }
+
+          if (el.children && el.children.length) {
+            queue.push(...Array.from(el.children));
+          }
+
+          if (el.shadowRoot) {
+            queue.push(el.shadowRoot);
+          }
+        } else if ((typeof Document !== 'undefined' && node instanceof Document) ||
+                   (typeof ShadowRoot !== 'undefined' && node instanceof ShadowRoot)) {
+          queue.push(...Array.from(node.children || []));
+        }
+      }
+
+      return null;
+    });
+
+    const elementHandle = handle.asElement();
+    if (elementHandle) {
+      console.log('Resolved file input using shadow DOM traversal.');
+      return { handle: elementHandle, origin: 'shadow-root-traversal' };
+    }
+    await handle.dispose();
+  } catch (error) {
+    console.log('Shadow DOM traversal failed:', error.message);
+  }
+
+  return null;
+}
+
+async function triggerUploadInput(page, files) {
+  const inputResult = await locateUploadInput(page);
+  if (inputResult) {
+    const { handle, origin } = inputResult;
+    try {
+      console.log(`Uploading files using input located from ${origin}`);
+      if (typeof handle.setInputFiles === 'function') {
+        await handle.setInputFiles(files);
+      } else if (typeof handle.uploadFile === 'function') {
+        await handle.uploadFile(...files);
+      } else {
+        throw new Error('Resolved upload input does not support file selection APIs');
+      }
+      await page.evaluate(el => {
+        const trigger = (eventName) => {
+          const event = new Event(eventName, { bubbles: true, composed: true });
+          el.dispatchEvent(event);
+        };
+        trigger('input');
+        trigger('change');
+      }, handle);
+      console.log('Files queued via upload input.');
+      await handle.dispose();
+      return true;
+    } catch (error) {
+      console.log('Failed to interact with resolved input:', error.message);
+      await handle.dispose().catch(() => {});
+    }
+  }
+  return false;
+}
+
+async function findFileInputAndUpload(page, files) {
+  console.log('Attempting to find upload control...');
+
+  try {
+    if (await triggerUploadInput(page, files)) {
       return true;
     }
 
-    // Attempt 3: Try clicking any clickable element to see if it opens file chooser
-    console.log('Trying fallback method: clicking any clickable element...');
-    const allClickableElements = await page.$$('button, div[role="button"], span[role="button"], a[role="button"], [onclick]');
-    console.log(`Found ${allClickableElements.length} clickable elements`);
-    
-    for (let i = 0; i < Math.min(allClickableElements.length, 10); i++) {
-      const element = allClickableElements[i];
-      try {
-        const elementInfo = await page.evaluate(el => ({
-          tagName: el.tagName,
-          textContent: el.textContent?.trim(),
-          className: el.className,
-          id: el.id,
-          visible: el.offsetParent !== null
-        }), element);
-        
-        if (elementInfo.visible) {
-          console.log(`Trying clickable element ${i + 1}: ${elementInfo.tagName} - "${elementInfo.textContent}" - ${elementInfo.className}`);
-          
-          try {
-            const [fileChooser] = await Promise.all([
-              page.waitForFileChooser({ timeout: 3000 }),
-              element.click()
-            ]);
-            
-            if (fileChooser) {
-              console.log('File chooser opened via fallback method!');
-              await fileChooser.accept(files);
-              console.log('Files accepted successfully!');
-              return true;
-            }
-          } catch (e) {
-            // No file chooser opened, continue to next element
-          }
-        }
-      } catch (e) {
-        // Element not clickable, continue
+    const uploadButton = await locateUploadButton(page);
+    if (uploadButton) {
+      console.log(`Clicking upload button discovered via ${uploadButton.selector}`);
+      await uploadButton.handle.click({ delay: 50 }).catch(error => {
+        console.log('Failed to click upload button directly:', error.message);
+      });
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await uploadButton.handle.dispose().catch(() => {});
+
+      if (await triggerUploadInput(page, files)) {
+        return true;
       }
+    } else {
+      console.log('Upload button not found via configured selectors.');
     }
 
-    console.log('No upload method worked');
+    console.log('Unable to locate functional upload mechanism.');
     return false;
   } catch (err) {
     console.error('Upload attempt failed:', err.message);
@@ -318,7 +378,9 @@ async function findFileInputAndUpload(page, files) {
 
 async function processBatch(dir, options) {
   const interactive = options.interactive || false;
-  const headless = (options.headless === undefined) ? HEADLESS_DEFAULT : options.headless;
+  const headless = (options.headless === undefined)
+    ? (interactive ? false : HEADLESS_DEFAULT)
+    : options.headless;
 
   console.log(`Starting batch process in dir=${dir} interactive=${interactive} headless=${headless}`);
 
@@ -356,9 +418,10 @@ async function processBatch(dir, options) {
   const ledger = await loadLedger();
 
   // find files in dir
-  const files = (await fs.readdir(dir))
-    .filter(f => /\.(jpe?g|png|heic|mov|mp4|avi|heif)$/i.test(f))
-    .map(f => path.join(dir, f));
+  const dirEntries = await fs.readdir(dir, { withFileTypes: true });
+  const files = dirEntries
+    .filter(entry => entry.isFile() && SUPPORTED_EXTENSIONS.test(entry.name))
+    .map(entry => path.join(dir, entry.name));
 
   if (!files.length) {
     console.log('No files to upload.');
@@ -425,13 +488,14 @@ async function processBatch(dir, options) {
       uploadedAt: (new Date()).toISOString()
     };
   }
-    await saveLedger(ledger);
 
-    // Save cookies (refresh session)
-    await saveCookies(page);
+  await saveLedger(ledger);
 
-    await browser.close();
-    console.log('Batch complete.');
+  // Save cookies (refresh session)
+  await saveCookies(page);
+
+  await browser.close();
+  console.log('Batch complete.');
   } catch (error) {
     console.error('Error during batch processing:', error);
     if (browser) {

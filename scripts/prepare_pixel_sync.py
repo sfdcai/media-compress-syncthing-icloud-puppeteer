@@ -18,10 +18,24 @@ from dotenv import load_dotenv
 load_dotenv(config_path)
 
 # Now import utils (which will use the loaded environment)
-from utils import (
-    log_step, ensure_directory_exists, get_media_files_by_directory,
-    update_file_status, create_batch_record, update_batch_status
-)
+try:  # Support both relative and absolute imports depending on entrypoint
+    from .utils import (
+        log_step,
+        ensure_directory_exists,
+        get_media_files_by_directory,
+        update_file_status,
+        create_batch_record,
+        update_batch_status,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        ensure_directory_exists,
+        get_media_files_by_directory,
+        update_file_status,
+        create_batch_record,
+        update_batch_status,
+    )
 
 def get_files_for_pixel_sync(originals_dir, max_files=None):
     """Get files from originals directory for Pixel sync"""

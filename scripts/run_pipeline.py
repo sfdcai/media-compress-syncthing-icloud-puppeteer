@@ -8,10 +8,20 @@ import os
 import sys
 import time
 from pathlib import Path
-from utils import (
-    log_step, validate_config, get_feature_toggle,
-    ensure_directory_exists
-)
+try:  # Allow running as package or standalone script
+    from .utils import (
+        log_step,
+        validate_config,
+        get_feature_toggle,
+        ensure_directory_exists,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        validate_config,
+        get_feature_toggle,
+        ensure_directory_exists,
+    )
 
 def setup_directories():
     """Setup required directories"""
