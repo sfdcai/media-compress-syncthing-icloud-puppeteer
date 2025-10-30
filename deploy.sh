@@ -169,7 +169,6 @@ deploy_files() {
     # Copy application files (excluding git directory and development files)
     run_cmd rsync -av --delete \
         --exclude='.git/' \
-        --exclude='*.md' \
         --exclude='deploy.sh' \
         --exclude='test_*.py' \
         --exclude='debug_*.py' \
@@ -183,9 +182,6 @@ deploy_files() {
         --exclude='update_packages.sh' \
         --exclude='test_setup.sh' \
         --exclude='optimalstorage/' \
-        --exclude='PRODUCTION_READINESS_REPORT.md' \
-        --exclude='EADME.md' \
-        --exclude='Deduplication_sorting_README.md' \
         --exclude='node_modules/' \
         --exclude='venv/' \
         --exclude='logs/' \

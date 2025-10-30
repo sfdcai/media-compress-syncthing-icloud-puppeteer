@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Improved iCloud Photos Upload Script using Puppeteer
- * Properly mimics web browser behavior for uploading to iCloud Photos
+ * iCloud Photos Upload Script using Puppeteer
+ * Automates file uploads to iCloud Photos web interface
  */
 
 import puppeteer from 'puppeteer';
@@ -40,10 +40,7 @@ class ICloudUploader {
                 '--disable-gpu',
                 '--disable-web-security',
                 '--disable-features=VizDisplayCompositor',
-                '--single-process',
-                '--disable-background-timer-throttling',
-                '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding'
+                '--single-process'
             ]
         });
 
@@ -67,7 +64,7 @@ class ICloudUploader {
                 timeout: 30000 
             });
 
-            // Wait for page to load
+            // Wait for login or photos interface
             await this.page.waitForSelector('body', { timeout: 10000 });
             
             // Check if we need to login
@@ -80,18 +77,13 @@ class ICloudUploader {
                 await this.page.waitForFunction(() => {
                     return document.querySelector('[data-testid="photos-app"]') || 
                            document.querySelector('.photos-app') ||
-                           document.querySelector('[aria-label*="Photos"]') ||
-                           document.querySelector('main') ||
-                           document.querySelector('.main-content');
+                           document.querySelector('[aria-label*="Photos"]');
                 }, { timeout: 300000 }); // 5 minutes for manual login
                 
                 console.log('✅ Login completed');
             } else {
                 console.log('✅ Already logged in');
             }
-
-            // Wait a bit more for the interface to stabilize
-            await new Promise(resolve => setTimeout(resolve, 3000));
 
             return true;
         } catch (error) {
@@ -134,24 +126,47 @@ class ICloudUploader {
                 throw new Error(`File not found: ${filePath}`);
             }
 
-            console.log(`📎 Attempting to upload: ${path.basename(filePath)}`);
+            // Look for upload button or drag-drop area
+            const uploadSelectors = [
+                '[data-testid="upload-button"]',
+                '[aria-label*="Upload"]',
+                'button[title*="Upload"]',
+                '.upload-button',
+                '.upload-area',
+                '[data-testid="photos-upload"]'
+            ];
 
-            // Method 1: Look for file input element
+            let uploadElement = null;
+            for (const selector of uploadSelectors) {
+                uploadElement = await this.page.$(selector);
+                if (uploadElement) break;
+            }
+
+            if (!uploadElement) {
+                // Try to find any clickable element that might trigger upload
+                uploadElement = await this.page.$('button, [role="button"]');
+                if (uploadElement) {
+                    console.log('🔍 Found potential upload trigger, clicking...');
+                    await uploadElement.click();
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+
+            // Look for file input
             const fileInput = await this.page.$('input[type="file"]');
             if (fileInput) {
                 console.log('📎 Found file input, uploading...');
                 await fileInput.uploadFile(filePath);
                 
                 // Wait for upload to complete
-                await new Promise(resolve => setTimeout(resolve, 15000));
+                await new Promise(resolve => setTimeout(resolve, 5000));
                 
-                // Check for success indicators
+                // Look for success indicators
                 const successIndicators = [
                     '[data-testid="upload-success"]',
                     '.upload-success',
                     '[aria-label*="success"]',
-                    '.success-message',
-                    '.upload-complete'
+                    '.success-message'
                 ];
 
                 let uploadSuccess = false;
@@ -163,140 +178,38 @@ class ICloudUploader {
                     }
                 }
 
-                // If no success indicator, check for errors
+                // If no success indicator, assume success if no error
                 if (!uploadSuccess) {
-                    const errorElements = await this.page.$$('[data-testid*="error"], .error, [aria-label*="error"], .upload-error');
+                    const errorElements = await this.page.$$('[data-testid*="error"], .error, [aria-label*="error"]');
                     uploadSuccess = errorElements.length === 0;
                 }
 
                 return uploadSuccess;
-            }
-
-            // Method 2: Try to trigger file dialog with keyboard shortcut
-            console.log('⌨️  Trying keyboard shortcut approach...');
-            await this.page.keyboard.down('Control');
-            await this.page.keyboard.press('KeyO');
-            await this.page.keyboard.up('Control');
-            
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            
-            // Check if file input appeared
-            const fileInputAfterShortcut = await this.page.$('input[type="file"]');
-            if (fileInputAfterShortcut) {
-                console.log('📎 File input appeared after shortcut, uploading...');
-                await fileInputAfterShortcut.uploadFile(filePath);
-                await new Promise(resolve => setTimeout(resolve, 15000));
-                return true;
-            }
-
-            // Method 3: Try clicking on upload areas
-            console.log('🔍 Looking for upload areas to click...');
-            const uploadAreas = [
-                '[data-testid="upload-button"]',
-                '[aria-label*="Upload"]',
-                'button[title*="Upload"]',
-                '.upload-button',
-                '.upload-area',
-                '[data-testid="photos-upload"]',
-                'button:contains("Upload")',
-                'button:contains("Add")',
-                'button:contains("Import")',
-                'button:contains("+")',
-                '[role="button"]'
-            ];
-
-            for (const selector of uploadAreas) {
-                try {
-                    const element = await this.page.$(selector);
-                    if (element) {
-                        console.log(`🔍 Found upload area: ${selector}, clicking...`);
-                        await element.click();
-                        await new Promise(resolve => setTimeout(resolve, 3000));
-                        
-                        // Check if file input appeared
-                        const fileInputAfterClick = await this.page.$('input[type="file"]');
-                        if (fileInputAfterClick) {
-                            console.log('📎 File input appeared after click, uploading...');
-                            await fileInputAfterClick.uploadFile(filePath);
-                            await new Promise(resolve => setTimeout(resolve, 15000));
-                            return true;
-                        }
-                    }
-                } catch (e) {
-                    // Continue to next selector
-                }
-            }
-
-            // Method 4: Try drag and drop on photos area
-            console.log('🖱️  Trying drag and drop approach...');
-            
-            // Look for photos container or main content area
-            const dropTargets = [
-                '[data-testid="photos-app"]',
-                '.photos-app',
-                '[aria-label*="Photos"]',
-                'main',
-                '.main-content',
-                'body'
-            ];
-
-            let dropTarget = null;
-            for (const selector of dropTargets) {
-                dropTarget = await this.page.$(selector);
-                if (dropTarget) break;
-            }
-
-            if (dropTarget) {
-                // Read file content
+            } else {
+                // Try drag and drop approach
+                console.log('🖱️  Trying drag and drop approach...');
+                
                 const fileContent = await fs.readFile(filePath);
                 const fileName = path.basename(filePath);
                 
-                // Create file object and trigger drop event
-                const dropSuccess = await this.page.evaluate(async (fileContent, fileName, targetSelector) => {
-                    const target = document.querySelector(targetSelector);
-                    if (!target) return false;
-                    
-                    try {
-                        // Create file object
-                        const file = new File([fileContent], fileName, { type: 'image/jpeg' });
-                        
-                        // Create drag and drop event
-                        const dragEvent = new DragEvent('dragover', {
-                            bubbles: true,
-                            cancelable: true,
-                            dataTransfer: new DataTransfer()
-                        });
-                        
-                        const dropEvent = new DragEvent('drop', {
-                            bubbles: true,
-                            cancelable: true,
-                            dataTransfer: new DataTransfer()
-                        });
-                        
-                        // Add file to data transfer
-                        dropEvent.dataTransfer.items.add(file);
-                        
-                        // Dispatch events
-                        target.dispatchEvent(dragEvent);
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                        target.dispatchEvent(dropEvent);
-                        
-                        return true;
-                    } catch (e) {
-                        console.error('Drop event error:', e);
-                        return false;
-                    }
-                }, fileContent, fileName, dropTargets.find(selector => dropTarget));
-                
-                if (dropSuccess) {
-                    await new Promise(resolve => setTimeout(resolve, 15000));
+                // Create a data transfer object
+                const dataTransfer = await this.page.evaluateHandle((fileContent, fileName) => {
+                    const dt = new DataTransfer();
+                    const file = new File([fileContent], fileName);
+                    dt.items.add(file);
+                    return dt;
+                }, fileContent, fileName);
+
+                // Find drop zone
+                const dropZone = await this.page.$('body'); // Use body as fallback
+                if (dropZone) {
+                    await dropZone.dispatchEvent('drop', { dataTransfer });
+                    await new Promise(resolve => setTimeout(resolve, 5000));
                     return true;
                 }
             }
 
-            console.log('❌ No upload method worked');
             return false;
-
         } catch (error) {
             console.error(`❌ Upload error: ${error.message}`);
             return false;
@@ -326,9 +239,9 @@ async function main() {
             interactive = true;
         } else if (args[i] === '--help') {
             console.log(`
-Improved iCloud Photos Upload Script
+iCloud Photos Upload Script
 
-Usage: node upload_icloud_improved.js [options]
+Usage: node upload_icloud.js [options]
 
 Options:
   --dir <path>      Directory containing files to upload
@@ -336,8 +249,8 @@ Options:
   --help           Show this help message
 
 Examples:
-  node upload_icloud_improved.js --dir /path/to/files
-  node upload_icloud_improved.js --dir /path/to/files --interactive
+  node upload_icloud.js --dir /path/to/files
+  node upload_icloud.js --dir /path/to/files --interactive
             `);
             process.exit(0);
         }

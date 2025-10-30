@@ -26,7 +26,7 @@ echo "📦 Creating deployment package..."
 mkdir -p pixel_backup_deployment
 cp pixel_backup_gang.zip pixel_backup_deployment/
 cp magisk_module_pixel_backup/credentials.json pixel_backup_deployment/
-cp MANUAL_DEPLOYMENT_GUIDE.md pixel_backup_deployment/
+cp README.md pixel_backup_deployment/
 
 # Create a simple transfer script
 cat > pixel_backup_deployment/transfer_to_pixel.sh << 'EOF'
@@ -56,7 +56,7 @@ echo "   adb push pixel_backup_gang.zip /sdcard/Download/"
 echo "   adb push credentials.json /sdcard/Download/"
 echo ""
 
-echo "After transfer, follow the installation steps in MANUAL_DEPLOYMENT_GUIDE.md"
+echo "After transfer, follow the Pixel backup instructions in README.md (see Pipeline Operations ➔ Upload Automation)."
 EOF
 
 chmod +x pixel_backup_deployment/transfer_to_pixel.sh

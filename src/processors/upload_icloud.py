@@ -35,7 +35,7 @@ def validate_node_environment():
         log_step("upload_icloud", f"Node.js version: {result.stdout.strip()}", "info")
         
         # Check if upload script exists
-        script_path = "/opt/media-pipeline/scripts/upload_icloud_improved.js"
+        script_path = "/opt/media-pipeline/scripts/upload_icloud.js"
         if not os.path.exists(script_path):
             log_step("upload_icloud", f"Upload script {script_path} not found", "error")
             return False
@@ -64,7 +64,11 @@ def upload_files_to_icloud(bridge_dir, interactive=False):
         log_step("upload_icloud", f"Starting upload from {bridge_dir}", "info")
         
         # Build command
-        cmd = ["node", "/opt/media-pipeline/scripts/upload_icloud_improved.js", "--dir", bridge_dir]
+        cmd = ["node", "/opt/media-pipeline/scripts/upload_icloud.js", "--dir", bridge_dir]
+
+        session_file = os.getenv("ICLOUD_SESSION_FILE")
+        if session_file:
+            cmd.extend(["--session-file", session_file])
         
         if interactive:
             cmd.append("--interactive")
