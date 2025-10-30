@@ -16,6 +16,9 @@ PIPELINE_DIR="/opt/media-pipeline"
 USER_NAME="media-pipeline"
 SERVICE_NAME="media-pipeline"
 
+# Remember where the installer lives so we can reliably copy files later
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Installation tracking
 INSTALLATION_STEPS=()
 FAILED_STEPS=()
@@ -301,47 +304,57 @@ setup_python_environment() {
 
 setup_nodejs_dependencies() {
     print_section "Node.js Dependencies Setup"
-    
-    print_status "INFO" "Setting up Node.js dependencies..."
-    cd "$PIPELINE_DIR"
-    
-    # Initialize npm if package.json doesn't exist
-    if [ ! -f "package.json" ]; then
-        sudo -u "$USER_NAME" npm init -y
-    fi
-    
-    # Install Puppeteer
-    print_status "INFO" "Installing Puppeteer..."
-    if sudo -u "$USER_NAME" npm install puppeteer@latest; then
-        print_status "SUCCESS" "Puppeteer installed"
-        
-        # Fix any security vulnerabilities
-        print_status "INFO" "Fixing npm security vulnerabilities..."
-        sudo -u "$USER_NAME" npm audit fix --force 2>/dev/null || true
-        print_status "SUCCESS" "Security vulnerabilities addressed"
-    else
-        print_status "ERROR" "Failed to install Puppeteer"
+
+    if [ ! -d "$PIPELINE_DIR" ]; then
+        print_status "ERROR" "Pipeline directory $PIPELINE_DIR does not exist"
         return 1
     fi
+
+    if [ ! -f "$PIPELINE_DIR/package.json" ]; then
+        print_status "WARNING" "No package.json found in $PIPELINE_DIR; skipping Node.js dependency installation"
+        return 0
+    fi
+
+    print_status "INFO" "Installing Node.js dependencies from package.json..."
+
+    (
+        cd "$PIPELINE_DIR" || exit 1
+
+        if sudo -u "$USER_NAME" npm install; then
+            print_status "SUCCESS" "Node.js dependencies installed"
+
+            # Address known vulnerabilities when possible without failing the installer
+            if command -v npm >/dev/null 2>&1; then
+                print_status "INFO" "Running npm audit fix (non-fatal)..."
+                sudo -u "$USER_NAME" npm audit fix --force 2>/dev/null || true
+            fi
+        else
+            print_status "ERROR" "npm install failed"
+            exit 1
+        fi
+    ) || return 1
 }
 
 copy_pipeline_files() {
     print_section "Pipeline Files Setup"
-    
-    print_status "INFO" "Copying pipeline files..."
-    
-    # Get the source directory (where this script is running from)
-    local source_dir=$(pwd)
-    
-    if [ -d "$source_dir" ]; then
-        cp -r "$source_dir"/* "$PIPELINE_DIR/"
-        chown -R "$USER_NAME:$USER_NAME" "$PIPELINE_DIR"
-        print_status "SUCCESS" "Pipeline files copied successfully"
-    else
-        print_status "ERROR" "Could not determine source directory"
+
+    if [ ! -d "$SCRIPT_DIR" ]; then
+        print_status "ERROR" "Unable to locate installer source directory"
         return 1
     fi
-    
+
+    print_status "INFO" "Copying pipeline files from $SCRIPT_DIR to $PIPELINE_DIR..."
+
+    rsync -a \
+        --exclude 'venv/' \
+        --exclude 'node_modules/' \
+        --exclude '.git/' \
+        --exclude '__pycache__/' \
+        "$SCRIPT_DIR"/ "$PIPELINE_DIR"/
+
+    chown -R "$USER_NAME:$USER_NAME" "$PIPELINE_DIR"
+    print_status "SUCCESS" "Pipeline files copied successfully"
+
     # Create log file with correct permissions
     touch "$PIPELINE_DIR/logs/pipeline.log"
     chown "$USER_NAME:$USER_NAME" "$PIPELINE_DIR/logs/pipeline.log"
@@ -539,9 +552,9 @@ main() {
     install_nodejs || exit 1
     install_syncthing || exit 1
     create_user_and_directories || exit 1
+    copy_pipeline_files || exit 1
     setup_python_environment || exit 1
     setup_nodejs_dependencies || exit 1
-    copy_pipeline_files || exit 1
     setup_systemd_service || exit 1
     setup_log_rotation || exit 1
     setup_cron_job || exit 1

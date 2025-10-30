@@ -9,10 +9,22 @@ import sys
 import shutil
 import subprocess
 from pathlib import Path
-from utils import (
-    log_step, get_feature_toggle, ensure_directory_exists,
-    get_file_size_gb, calculate_file_hash
-)
+try:  # Support both module and standalone execution modes
+    from .utils import (
+        log_step,
+        get_feature_toggle,
+        ensure_directory_exists,
+        get_file_size_gb,
+        calculate_file_hash,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        get_feature_toggle,
+        ensure_directory_exists,
+        get_file_size_gb,
+        calculate_file_hash,
+    )
 
 def get_media_files(directory, extensions=None):
     """Get all media files from directory"""

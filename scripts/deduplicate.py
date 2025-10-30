@@ -5,15 +5,35 @@ Removes duplicate files and tracks them in Supabase database
 """
 
 import os
+import re
 import sys
 import shutil
 from pathlib import Path
-from utils import (
-    log_step, calculate_file_hash, get_file_size_gb,
-    ensure_directory_exists, is_duplicate_file,
-    log_duplicate_file, get_feature_toggle, retry,
-    create_media_file_record
-)
+from typing import List, Tuple
+try:  # Allow execution both as module and standalone script
+    from .utils import (
+        log_step,
+        calculate_file_hash,
+        get_file_size_gb,
+        ensure_directory_exists,
+        is_duplicate_file,
+        log_duplicate_file,
+        get_feature_toggle,
+        retry,
+        create_media_file_record,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from utils import (  # type: ignore
+        log_step,
+        calculate_file_hash,
+        get_file_size_gb,
+        ensure_directory_exists,
+        is_duplicate_file,
+        log_duplicate_file,
+        get_feature_toggle,
+        retry,
+        create_media_file_record,
+    )
 
 def get_media_files(directory, extensions=None):
     """Get all media files from directory"""
@@ -92,8 +112,12 @@ def process_file_deduplication(file_path, duplicates_dir, hash_algorithm="md5"):
 def deduplicate_directory(source_dir, duplicates_dir=None, hash_algorithm="md5", batch_size=1000):
     """Deduplicate files in a directory"""
     if not os.path.exists(source_dir):
-        log_step("deduplication", f"Source directory {source_dir} does not exist", "error")
-        return False
+        log_step(
+            "deduplication",
+            f"Source directory {source_dir} does not exist; skipping",
+            "info",
+        )
+        return True
     
     # Create duplicates directory if not specified
     if duplicates_dir is None:
@@ -146,33 +170,109 @@ def deduplicate_directory(source_dir, duplicates_dir=None, hash_algorithm="md5",
     
     return True
 
+
+def _derive_label(path: Path, fallback_index: int) -> str:
+    """Create a human-friendly label for a deduplication directory."""
+
+    name = path.name.strip()
+    if name:
+        return name
+
+    sanitized = re.sub(r"[^a-zA-Z0-9]+", "_", path.as_posix().strip("/"))
+    if sanitized:
+        return sanitized.strip("_")
+
+    return f"custom_{fallback_index}"
+
+
+def get_deduplication_targets() -> List[Tuple[str, str]]:
+    """Return labeled directories that should run through deduplication."""
+
+    targets: List[Tuple[str, str]] = []
+
+    defaults = [
+        ("originals", os.getenv("ORIGINALS_DIR", "originals")),
+        ("uploaded_icloud", os.getenv("UPLOADED_ICLOUD_DIR")),
+        ("uploaded_pixel", os.getenv("UPLOADED_PIXEL_DIR")),
+    ]
+
+    seen_paths = set()
+    for label, directory in defaults:
+        if not directory:
+            continue
+        normalized = str(Path(directory).expanduser())
+        if normalized in seen_paths:
+            continue
+        seen_paths.add(normalized)
+        targets.append((label, normalized))
+
+    custom_paths = os.getenv("DEDUPLICATION_DIRECTORIES", "")
+    if custom_paths:
+        raw_entries = re.split(r"[\n,]", custom_paths)
+        index = 1
+        for entry in raw_entries:
+            directory = entry.strip()
+            if not directory:
+                continue
+            normalized = str(Path(directory).expanduser())
+            if normalized in seen_paths:
+                continue
+            seen_paths.add(normalized)
+            label = _derive_label(Path(normalized), index)
+            targets.append((label, normalized))
+            index += 1
+
+    return targets
+
 def main():
     """Main deduplication function"""
     if not get_feature_toggle("ENABLE_DEDUPLICATION"):
         log_step("deduplication", "Deduplication is disabled, skipping", "info")
         return
-    
+
     # Get configuration
-    source_dir = os.getenv("ORIGINALS_DIR", "originals")
     hash_algorithm = os.getenv("DEDUPLICATION_HASH_ALGORITHM", "md5")
     batch_size = int(os.getenv("DEDUPLICATION_BATCH_SIZE", "1000"))
-    
-    # Validate source directory
-    if not os.path.exists(source_dir):
-        log_step("deduplication", f"Source directory {source_dir} does not exist", "error")
+
+    targets = get_deduplication_targets()
+    if not targets:
+        log_step(
+            "deduplication",
+            "No directories configured for deduplication; nothing to do",
+            "warning",
+        )
         return
-    
-    # Run deduplication
-    success = deduplicate_directory(
-        source_dir=source_dir,
-        hash_algorithm=hash_algorithm,
-        batch_size=batch_size
-    )
-    
-    if success:
+
+    overall_success = True
+    for label, directory in targets:
+        log_step(
+            "deduplication",
+            f"Processing {label} directory: {directory}",
+            "info",
+        )
+        success = deduplicate_directory(
+            source_dir=directory,
+            hash_algorithm=hash_algorithm,
+            batch_size=batch_size,
+        )
+        if success:
+            log_step(
+                "deduplication",
+                f"Successfully deduplicated {label} directory",
+                "success",
+            )
+        else:
+            log_step(
+                "deduplication",
+                f"Failed to deduplicate {label} directory",
+                "error",
+            )
+            overall_success = False
+
+    if overall_success:
         log_step("deduplication", "Deduplication completed successfully", "success")
     else:
-        log_step("deduplication", "Deduplication failed", "error")
+        log_step("deduplication", "Deduplication encountered errors", "error")
         sys.exit(1)
 
 if __name__ == "__main__":
