@@ -9,8 +9,26 @@ import sys
 import json
 from pathlib import Path
 
+import pytest
+
 # Add the src directory to the path
 sys.path.append('/opt/media-pipeline/src')
+
+RUN_PROD_TESTS = os.environ.get("RUN_PROD_TESTS") == "1"
+pytestmark = pytest.mark.skipif(
+    not RUN_PROD_TESTS,
+    reason="Set RUN_PROD_TESTS=1 to enable Google Photos sync checker integration tests."
+)
+
+USING_PYTEST = "pytest" in sys.modules
+
+
+def _test_result(success, failure_message="Test reported failure"):
+    if USING_PYTEST:
+        if not success:
+            pytest.fail(failure_message)
+        return None
+    return success
 
 def test_sync_checker_basic():
     """Test basic sync checker functionality"""
@@ -24,7 +42,7 @@ def test_sync_checker_basic():
         
         checker = GooglePhotosSyncChecker()
         print("✅ GooglePhotosSyncChecker imported successfully")
-        
+
         # Test credential loading
         if checker.load_credentials():
             print("✅ Credentials loaded successfully")
@@ -32,7 +50,7 @@ def test_sync_checker_basic():
             print(f"   Client Secret: {checker.client_secret[:10]}...")
         else:
             print("❌ Failed to load credentials")
-            return False
+            return _test_result(False, "Google Photos credentials failed to load")
         
         # Test token loading (may not exist yet)
         if checker.load_tokens():
@@ -49,21 +67,21 @@ def test_sync_checker_basic():
             print(f"   URL: {auth_url[:80]}...")
         else:
             print("❌ Failed to generate authorization URL")
-            return False
+            return _test_result(False, "Failed to generate Google Photos authorization URL")
         
         # Test configuration loading
         from utils.utils import get_config_value
         
         enable_sync_check = get_config_value('ENABLE_GOOGLE_PHOTOS_SYNC_CHECK', 'false')
         print(f"✅ Configuration loaded: ENABLE_GOOGLE_PHOTOS_SYNC_CHECK = {enable_sync_check}")
-        
-        return True
+
+        return _test_result(True)
         
     except Exception as e:
         print(f"❌ Error testing sync checker: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return _test_result(False, f"Error testing Google Photos sync checker: {e}")
 
 def test_pipeline_integration():
     """Test pipeline integration"""
@@ -82,14 +100,14 @@ def test_pipeline_integration():
         
         enable_sync_check = get_feature_toggle("ENABLE_GOOGLE_PHOTOS_SYNC_CHECK")
         print(f"✅ Feature toggle check: ENABLE_GOOGLE_PHOTOS_SYNC_CHECK = {enable_sync_check}")
-        
-        return True
+
+        return _test_result(True)
         
     except Exception as e:
         print(f"❌ Error testing pipeline integration: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return _test_result(False, f"Error testing Google Photos pipeline integration: {e}")
 
 def test_file_structure():
     """Test file structure and permissions"""
@@ -102,7 +120,7 @@ def test_file_structure():
         '/opt/media-pipeline/scripts/complete_google_photos_auth.py',
         '/opt/media-pipeline/config/google_photos_credentials.json',
         '/opt/media-pipeline/config/google_photos_credentials.json.template',
-        '/opt/media-pipeline/GOOGLE_PHOTOS_SYNC_CHECKER.md',
+        '/opt/media-pipeline/README.md',
         '/opt/media-pipeline/src/processors/verify_and_cleanup.py'
     ]
     
@@ -113,8 +131,8 @@ def test_file_structure():
         else:
             print(f"❌ {file_path}")
             all_exist = False
-    
-    return all_exist
+
+    return _test_result(all_exist, "One or more Google Photos sync checker files are missing")
 
 def test_configuration():
     """Test configuration settings"""
@@ -142,14 +160,14 @@ def test_configuration():
                     print(f"❌ {description}")
                     all_configured = False
             
-            return all_configured
+            return _test_result(all_configured, "Google Photos sync checker configuration is incomplete")
         else:
             print("❌ Settings file not found")
-            return False
-            
+            return _test_result(False, "Settings file not found for Google Photos sync checker")
+
     except Exception as e:
         print(f"❌ Error checking configuration: {e}")
-        return False
+        return _test_result(False, f"Error checking Google Photos sync checker configuration: {e}")
 
 def main():
     """Main test function"""

@@ -31,6 +31,7 @@ TABLE_DEFINITIONS = {
             status TEXT,
             file_count INTEGER,
             total_size_gb REAL,
+            source_type TEXT,
             completed_at TEXT,
             synced_to_supabase INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -41,16 +42,47 @@ TABLE_DEFINITIONS = {
         CREATE TABLE IF NOT EXISTS media_files (
             id TEXT PRIMARY KEY,
             supabase_id TEXT,
-            filename TEXT,
-            file_path TEXT,
+            filename TEXT NOT NULL,
+            file_path TEXT NOT NULL,
             file_hash TEXT,
             file_size INTEGER,
+            original_size INTEGER,
+            compressed_size INTEGER,
+            space_saved INTEGER,
+            compression_percentage REAL,
+            compression_ratio REAL,
+            is_duplicate INTEGER DEFAULT 0,
+            source_path TEXT,
+            source_type TEXT DEFAULT 'unknown',
             status TEXT,
             batch_id TEXT,
-            source_path TEXT,
             processed_at TEXT,
             synced_to_supabase INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+    """,
+    "duplicate_files": """
+        CREATE TABLE IF NOT EXISTS duplicate_files (
+            id TEXT PRIMARY KEY,
+            supabase_id TEXT,
+            original_file_id TEXT,
+            duplicate_file_id TEXT,
+            hash TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            synced_to_supabase INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+    """,
+    "pipeline_logs": """
+        CREATE TABLE IF NOT EXISTS pipeline_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supabase_id TEXT,
+            step TEXT NOT NULL,
+            message TEXT NOT NULL,
+            status TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            synced_to_supabase INTEGER DEFAULT 0,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
     """,
@@ -59,13 +91,31 @@ TABLE_DEFINITIONS = {
 LEGACY_COLUMNS = {
     "batches": {
         "completed_at": "TEXT",
+        "source_type": "TEXT",
         "synced_to_supabase": "INTEGER DEFAULT 0",
     },
     "media_files": {
         "file_size": "INTEGER",
+        "original_size": "INTEGER",
+        "compressed_size": "INTEGER",
+        "space_saved": "INTEGER",
+        "compression_percentage": "REAL",
+        "compression_ratio": "REAL",
+        "is_duplicate": "INTEGER DEFAULT 0",
         "source_path": "TEXT",
+        "source_type": "TEXT DEFAULT 'unknown'",
         "processed_at": "TEXT",
         "synced_to_supabase": "INTEGER DEFAULT 0",
+    },
+    "duplicate_files": {
+        "synced_to_supabase": "INTEGER DEFAULT 0",
+        "updated_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+        "supabase_id": "TEXT",
+    },
+    "pipeline_logs": {
+        "supabase_id": "TEXT",
+        "synced_to_supabase": "INTEGER DEFAULT 0",
+        "updated_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
     },
 }
 
@@ -275,6 +325,7 @@ def save_batch_record(
     status: str,
     file_count: Optional[int] = None,
     total_size_gb: Optional[float] = None,
+    source_type: Optional[str] = None,
     supabase_id: Optional[str] = None,
     synced: bool = False,
 ) -> None:
@@ -285,6 +336,7 @@ def save_batch_record(
         "status": status,
         "file_count": file_count,
         "total_size_gb": total_size_gb,
+        "source_type": source_type or batch_type,
     }
     _save_record(
         "batches",
@@ -303,8 +355,15 @@ def save_media_file_record(
     file_hash: Optional[str],
     status: str,
     file_size: Optional[int] = None,
+    original_size: Optional[int] = None,
+    compressed_size: Optional[int] = None,
+    space_saved: Optional[int] = None,
+    compression_percentage: Optional[float] = None,
+    compression_ratio: Optional[float] = None,
+    is_duplicate: Optional[bool] = None,
     batch_id: Optional[str] = None,
     source_path: Optional[str] = None,
+    source_type: Optional[str] = None,
     processed_at: Optional[str] = None,
     supabase_id: Optional[str] = None,
     synced: bool = False,
@@ -317,10 +376,18 @@ def save_media_file_record(
         "file_hash": file_hash,
         "status": status,
         "file_size": file_size,
+        "original_size": original_size,
+        "compressed_size": compressed_size,
+        "space_saved": space_saved,
+        "compression_percentage": compression_percentage,
+        "compression_ratio": compression_ratio,
         "batch_id": batch_id,
         "source_path": source_path,
+        "source_type": source_type or "unknown",
         "processed_at": _normalise_timestamp(processed_at),
     }
+    if is_duplicate is not None:
+        fields["is_duplicate"] = int(bool(is_duplicate))
     _save_record(
         "media_files",
         record_id,

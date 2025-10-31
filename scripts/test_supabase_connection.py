@@ -5,10 +5,28 @@ Test Supabase connection and configuration
 
 import os
 import sys
+
+import pytest
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv("config/settings.env")
+
+RUN_PROD_TESTS = os.environ.get("RUN_PROD_TESTS") == "1"
+pytestmark = pytest.mark.skipif(
+    not RUN_PROD_TESTS,
+    reason="Set RUN_PROD_TESTS=1 to enable Supabase integration tests."
+)
+
+USING_PYTEST = "pytest" in sys.modules
+
+
+def _test_result(success, failure_message="Test reported failure"):
+    if USING_PYTEST:
+        if not success:
+            pytest.fail(failure_message)
+        return None
+    return success
 
 def test_supabase_config():
     """Test Supabase configuration"""
@@ -27,14 +45,14 @@ def test_supabase_config():
     # Check if configuration looks valid
     if not supabase_url or supabase_url == "https://your-project.supabase.co":
         print("✗ SUPABASE_URL is not configured (still has placeholder value)")
-        return False
-    
+        return _test_result(False, "SUPABASE_URL is not configured")
+
     if not supabase_key or supabase_key.startswith("eyJhbGciOiJIUzI1NiIsInR5cCI6..."):
         print("✗ SUPABASE_KEY is not configured (still has placeholder value)")
-        return False
-    
+        return _test_result(False, "SUPABASE_KEY is not configured")
+
     print("✓ Configuration looks valid")
-    return True
+    return _test_result(True)
 
 def test_supabase_connection():
     """Test actual Supabase connection"""
@@ -55,11 +73,11 @@ def test_supabase_connection():
         result = supabase.table("media_files").select("id").limit(1).execute()
         print(f"✓ Database connection successful (found {len(result.data)} records)")
         
-        return True
-        
+        return _test_result(True)
+
     except Exception as e:
         print(f"✗ Supabase connection failed: {e}")
-        return False
+        return _test_result(False, f"Supabase connection failed: {e}")
 
 def test_utils_import():
     """Test importing utils module"""
@@ -79,12 +97,12 @@ def test_utils_import():
         # Test logging
         log_step("test", "Test log message", "info")
         print("✓ Logging function works")
-        
-        return True
-        
+
+        return _test_result(True)
+
     except Exception as e:
         print(f"✗ Utils import failed: {e}")
-        return False
+        return _test_result(False, f"Utils import failed: {e}")
 
 def main():
     """Main test function"""

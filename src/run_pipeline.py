@@ -9,7 +9,7 @@ import sys
 import time
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Callable, Union
 from dataclasses import dataclass
 from enum import Enum
 from datetime import datetime
@@ -46,8 +46,8 @@ class MediaPipeline:
     """Main media pipeline orchestrator class"""
     
     def __init__(self):
-        self.phases: List[Tuple[str, str, callable]] = [
-            ("download", "ENABLE_ICLOUD_DOWNLOAD", self.run_download),
+        self.phases: List[Tuple[str, Union[str, Callable[[], bool]], Callable[[], bool]]] = [
+            ("download", self._is_download_phase_enabled, self.run_download),
             ("deduplication", "ENABLE_DEDUPLICATION", self.run_deduplication),
             ("compression", "ENABLE_COMPRESSION", self.run_compression),
             ("file_preparation", "ENABLE_FILE_PREPARATION", self.run_file_preparation),
@@ -94,12 +94,40 @@ class MediaPipeline:
             log_step("pipeline", f"Fallback directory setup failed: {e}", "error")
             return False
     
-    def run_phase(self, phase_name: str, toggle_name: str, phase_func) -> PhaseResult:
+    def _is_download_phase_enabled(self) -> bool:
+        """Determine whether the download phase should run"""
+        if get_feature_toggle("ENABLE_ICLOUD_DOWNLOAD"):
+            return True
+
+        if get_feature_toggle("ENABLE_FOLDER_DOWNLOAD"):
+            return True
+
+        return False
+
+    def run_phase(
+        self,
+        phase_name: str,
+        toggle_ref: Union[str, Callable[[], bool]],
+        phase_func: Callable[[], bool]
+    ) -> PhaseResult:
         """Run a single pipeline phase with comprehensive error handling"""
         start_time = datetime.now()
-        
+
+        try:
+            toggle_enabled = toggle_ref() if callable(toggle_ref) else get_feature_toggle(toggle_ref)
+        except Exception as e:
+            duration = (datetime.now() - start_time).total_seconds()
+            error_msg = f"Failed to evaluate toggle for {phase_name}: {e}"
+            log_step("pipeline", error_msg, "error")
+            return PhaseResult(
+                name=phase_name,
+                status=PhaseStatus.FAILED,
+                duration=duration,
+                error=str(e)
+            )
+
         # Check if phase is enabled
-        if not get_feature_toggle(toggle_name):
+        if not toggle_enabled:
             log_step("pipeline", f"{phase_name} phase disabled", "info")
             return PhaseResult(
                 name=phase_name,

@@ -94,7 +94,8 @@ def copy_files_to_bridge(files, bridge_dir, batch_type):
         batch_id = create_batch_record(
             batch_type=batch_type,
             file_count=len(copied_files),
-            total_size_gb=total_size_gb
+            total_size_gb=total_size_gb,
+            source_type=batch_type,
         )
         
         if batch_id:

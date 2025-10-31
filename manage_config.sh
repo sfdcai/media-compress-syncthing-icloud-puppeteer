@@ -77,12 +77,22 @@ setup_config_directory() {
 
 create_template_env() {
     cat > "$ENV_FILE" << 'EOF'
-# Feature Toggles
+# Feature Toggles - Source Control
+ENABLE_ICLOUD_DOWNLOAD=true
+ENABLE_FOLDER_DOWNLOAD=false
 ENABLE_ICLOUD_UPLOAD=true
 ENABLE_PIXEL_UPLOAD=true
+
+# Feature Toggles - Processing Control
 ENABLE_COMPRESSION=true
+ENABLE_IMAGE_COMPRESSION=true
+ENABLE_VIDEO_COMPRESSION=true
 ENABLE_DEDUPLICATION=true
+ENABLE_FILE_PREPARATION=true
 ENABLE_SORTING=true
+ENABLE_VERIFICATION=true
+ENABLE_GOOGLE_PHOTOS_SYNC_CHECK=false
+ENABLE_FILENAME_CONFLICT_RESOLUTION=true
 
 # iCloud
 ICLOUD_USERNAME=your@email.com
@@ -145,6 +155,11 @@ ICLOUD_BATCH_SIZE=50
 PIXEL_SYNC_TIMEOUT=300
 UPLOAD_RETRY_ATTEMPTS=3
 UPLOAD_RETRY_DELAY=30
+# Optional selector overrides for Puppeteer automation
+ICLOUD_UPLOAD_SELECTOR=
+# Persisted session cookies for Puppeteer uploads
+ICLOUD_SESSION_FILE=/opt/media-pipeline/.config/icloud_session.json
+ICLOUD_UPLOAD_TIMEOUT=300
 
 # Simplified Processing Settings
 CLEAR_BRIDGE_BEFORE_PROCESSING=true

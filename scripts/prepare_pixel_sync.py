@@ -191,7 +191,8 @@ def prepare_pixel_sync():
     batch_id = create_batch_record(
         batch_type="pixel",
         file_count=len(files),
-        total_size_gb=sum(f.get('file_size', 0) for f in files) / (1024**3)
+        total_size_gb=sum(f.get('file_size', 0) for f in files) / (1024**3),
+        source_type="pixel",
     )
     
     if not batch_id:
